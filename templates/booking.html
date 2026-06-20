@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ご予約 | きしもとカラダ整体</title>
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div>
+    <div class="logo">きしもとカラダ整体</div>
+    <div class="subtitle">きしもとカラダcondiTion｜神戸市垂水区舞子</div>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- ステップ表示 -->
+  <div class="steps" id="steps">
+    <div class="step active" id="step1-ind">
+      <div class="step-num">1</div>日程選択
+    </div>
+    <div class="step-arrow">›</div>
+    <div class="step" id="step2-ind">
+      <div class="step-num">2</div>時間選択
+    </div>
+    <div class="step-arrow">›</div>
+    <div class="step" id="step3-ind">
+      <div class="step-num">3</div>お客様情報
+    </div>
+    <div class="step-arrow">›</div>
+    <div class="step" id="step4-ind">
+      <div class="step-num">4</div>確認
+    </div>
+  </div>
+
+  <!-- STEP 1: カレンダー -->
+  <div id="step1">
+    <div class="card">
+      <div class="card-title">日程を選択してください</div>
+      <div class="cal-nav">
+        <button id="prev-month">‹ 前月</button>
+        <span class="cal-month" id="cal-month-label"></span>
+        <button id="next-month">次月 ›</button>
+      </div>
+      <div class="cal-grid">
+        <div class="cal-dow sun">日</div>
+        <div class="cal-dow">月</div>
+        <div class="cal-dow">火</div>
+        <div class="cal-dow">水</div>
+        <div class="cal-dow">木</div>
+        <div class="cal-dow">金</div>
+        <div class="cal-dow sat">土</div>
+      </div>
+      <div class="cal-grid" id="cal-body" style="margin-top:4px"></div>
+      <p style="font-size:12px;color:var(--muted);margin-top:10px;text-align:center">
+        緑色の日付が予約可能です
+      </p>
+    </div>
+  </div>
+
+  <!-- STEP 2: 時間帯 -->
+  <div id="step2" class="hidden">
+    <div class="selected-info" id="selected-date-banner">
+      📅 <span id="selected-date-label"></span>
+    </div>
+    <div class="card">
+      <div class="card-title">時間帯を選択してください</div>
+      <div class="time-grid" id="time-grid"></div>
+      <p style="font-size:12px;color:var(--muted);margin-top:12px">
+        ※ 施術時間は約45分です<br>
+        ※ 定休日：日曜・火曜
+      </p>
+    </div>
+    <button class="btn btn-outline" onclick="goStep(1)">← 日程を選び直す</button>
+  </div>
+
+  <!-- STEP 3: 顧客情報 -->
+  <div id="step3" class="hidden">
+    <div class="selected-info">
+      📅 <span id="selected-datetime-label"></span>
+    </div>
+    <div class="card">
+      <div class="card-title">お客様情報を入力してください</div>
+      <div class="form-group">
+        <label>お名前<span>*</span></label>
+        <input type="text" id="input-name" placeholder="例）岸本 太郎" autocomplete="name">
+      </div>
+      <div class="form-group">
+        <label>電話番号<span>*</span></label>
+        <input type="tel" id="input-phone" placeholder="例）090-1234-5678" autocomplete="tel">
+      </div>
+      <div class="form-group">
+        <label>メールアドレス<span>*</span></label>
+        <input type="email" id="input-email" placeholder="例）taro@example.com" autocomplete="email">
+      </div>
+      <div class="form-group">
+        <label>ご要望・お体の状態など（任意）</label>
+        <textarea id="input-note" placeholder="腰が痛い、初回です、など"></textarea>
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="goConfirm()">確認画面へ →</button>
+    <div style="height:10px"></div>
+    <button class="btn btn-outline" onclick="goStep(2)">← 時間を選び直す</button>
+  </div>
+
+  <!-- STEP 4: 確認 -->
+  <div id="step4" class="hidden">
+    <div class="card">
+      <div class="card-title">予約内容の確認</div>
+      <dl class="confirm-box">
+        <div class="confirm-row"><dt>日時</dt><dd id="confirm-datetime"></dd></div>
+        <div class="confirm-row"><dt>お名前</dt><dd id="confirm-name"></dd></div>
+        <div class="confirm-row"><dt>電話番号</dt><dd id="confirm-phone"></dd></div>
+        <div class="confirm-row" id="confirm-email-row">
+          <dt>メール</dt><dd id="confirm-email"></dd>
+        </div>
+        <div class="confirm-row" id="confirm-note-row">
+          <dt>ご要望</dt><dd id="confirm-note"></dd>
+        </div>
+      </dl>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:16px">
+        上記の内容でよろしければ「予約を確定する」を押してください。
+      </p>
+      <button class="btn btn-primary" id="submit-btn" onclick="submitReservation()">予約を確定する</button>
+    </div>
+    <div style="height:10px"></div>
+    <button class="btn btn-outline" onclick="goStep(3)">← 情報を修正する</button>
+  </div>
+
+  <!-- STEP 5: 完了 -->
+  <div id="step5" class="hidden">
+    <div class="card" style="text-align:center;padding:30px 20px">
+      <div class="success-icon">✅</div>
+      <div class="success-title">ご予約が確定しました！</div>
+      <div class="success-sub">確認のご連絡をいたします</div>
+      <dl class="confirm-box" style="text-align:left">
+        <div class="confirm-row"><dt>日時</dt><dd id="done-datetime"></dd></div>
+        <div class="confirm-row"><dt>お名前</dt><dd id="done-name"></dd></div>
+        <div class="confirm-row"><dt>電話番号</dt><dd id="done-phone"></dd></div>
+      </dl>
+      <p style="font-size:13px;color:var(--muted);margin-top:12px;margin-bottom:20px">
+        ご予約番号: <strong id="done-id"></strong>
+      </p>
+      <button class="btn btn-outline" onclick="resetAll()">別の日程を予約する</button>
+    </div>
+    <div class="card" style="font-size:13px;color:var(--muted)">
+      <p>ご不明な点は下記よりお問い合わせください。</p>
+      <p style="margin-top:8px">📞 <strong>電話</strong>: ご予約時の番号にお電話ください</p>
+    </div>
+  </div>
+
+</div>
+
+<div id="toast"></div>
+
+<script src="/static/js/booking.js"></script>
+</body>
+</html>

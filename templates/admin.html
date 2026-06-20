@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>管理画面 | きしもとカラダcondiTion</title>
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<header class="admin-header">
+  <div class="title">⚙️ 予約管理画面</div>
+  <button class="btn btn-outline btn-sm" onclick="doLogout()" style="color:#fff;border-color:#fff">ログアウト</button>
+</header>
+
+<div class="admin-container">
+
+  <!-- タブ -->
+  <div style="display:flex;gap:8px;margin-bottom:20px;border-bottom:2px solid var(--border);padding-bottom:0">
+    <button class="tab-btn active" data-tab="slots" onclick="switchTab('slots')">空き枠管理</button>
+    <button class="tab-btn" data-tab="reservations" onclick="switchTab('reservations')">予約一覧</button>
+  </div>
+
+  <!-- ── タブ: 空き枠管理 ───────────────────────── -->
+  <div id="tab-slots">
+
+    <!-- 月ナビ + 追加ボタン -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <button class="btn btn-outline btn-sm" onclick="changeMonth(-1)">‹ 前月</button>
+        <span id="admin-month-label" style="font-weight:700;font-size:16px"></span>
+        <button class="btn btn-outline btn-sm" onclick="changeMonth(1)">次月 ›</button>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="openAddModal()">＋ 空き枠を追加</button>
+    </div>
+
+    <!-- カレンダー（曜日） -->
+    <div class="admin-cal-grid" style="margin-bottom:4px">
+      <div class="cal-dow sun" style="text-align:center">日</div>
+      <div class="cal-dow" style="text-align:center">月</div>
+      <div class="cal-dow" style="text-align:center">火</div>
+      <div class="cal-dow" style="text-align:center">水</div>
+      <div class="cal-dow" style="text-align:center">木</div>
+      <div class="cal-dow" style="text-align:center">金</div>
+      <div class="cal-dow sat" style="text-align:center">土</div>
+    </div>
+    <div class="admin-cal-grid" id="admin-cal-body"></div>
+
+    <!-- 日付クリック時の枠一覧 -->
+    <div id="day-slots-panel" class="card hidden" style="margin-top:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div class="card-title" style="margin-bottom:0" id="day-slots-title"></div>
+        <button class="btn btn-primary btn-sm" id="day-add-btn" onclick="openAddModalForDay()">＋ この日に追加</button>
+      </div>
+      <ul class="slot-list" id="day-slot-list"></ul>
+    </div>
+
+  </div>
+
+  <!-- ── タブ: 予約一覧 ─────────────────────────── -->
+  <div id="tab-reservations" class="hidden">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div style="font-weight:700;font-size:16px">確定済み予約</div>
+      <button class="btn btn-outline btn-sm" onclick="loadReservations()">🔄 更新</button>
+    </div>
+    <div id="res-content">
+      <div style="text-align:center;color:var(--muted);padding:40px">読み込み中...</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── モーダル: 空き枠追加 ──────────────────────── -->
+<div class="modal-overlay hidden" id="add-modal">
+  <div class="modal">
+    <div class="modal-title">空き枠を追加</div>
+
+    <div style="display:flex;gap:8px;margin-bottom:16px">
+      <button class="btn btn-outline btn-sm" id="add-mode-single" onclick="setAddMode('single')" style="flex:1">1枠ずつ</button>
+      <button class="btn btn-outline btn-sm" id="add-mode-bulk"   onclick="setAddMode('bulk')"   style="flex:1">まとめて追加</button>
+    </div>
+
+    <!-- シングルモード -->
+    <div id="add-single">
+      <div class="form-group">
+        <label>日付</label>
+        <input type="date" id="add-date">
+      </div>
+      <div class="form-group">
+        <label>時間</label>
+        <input type="time" id="add-time" step="1800">
+      </div>
+    </div>
+
+    <!-- バルクモード -->
+    <div id="add-bulk" class="hidden">
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px">
+        期間と時間帯を指定してまとめて追加します
+      </p>
+      <div class="form-group">
+        <label>開始日</label>
+        <input type="date" id="bulk-start">
+      </div>
+      <div class="form-group">
+        <label>終了日</label>
+        <input type="date" id="bulk-end">
+      </div>
+      <div class="form-group">
+        <label>曜日を選択</label>
+        <div id="dow-checkboxes" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px">
+          <label style="display:flex;align-items:center;gap:4px;font-size:13px;font-weight:400;cursor:pointer">
+            <input type="checkbox" value="0"> 日<span style="font-size:10px;color:#e44;margin-left:2px">定休</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:13px;font-weight:400;cursor:pointer">
+            <input type="checkbox" value="1" checked> 月
+          </label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:13px;font-weight:400;cursor:pointer">
+            <input type="checkbox" value="2"> 火<span style="font-size:10px;color:#e44;margin-left:2px">定休</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:13px;font-weight:400;cursor:pointer">
+            <input type="checkbox" value="3" checked> 水
+          </label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:13px;font-weight:400;cursor:pointer">
+            <input type="checkbox" value="4" checked> 木
+          </label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:13px;font-weight:400;cursor:pointer">
+            <input type="checkbox" value="5" checked> 金
+          </label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:13px;font-weight:400;cursor:pointer">
+            <input type="checkbox" value="6" checked> 土
+          </label>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>時間帯を選択</label>
+        <div id="time-checkboxes" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:6px">
+        </div>
+      </div>
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:600;color:var(--text)">
+          <input type="checkbox" id="holiday-adjust" checked>
+          祝日は最終17:00まで（18:00・19:00を自動除外）
+        </label>
+        <p style="font-size:11px;color:var(--muted);margin-top:4px;padding-left:20px">
+          祝日営業は11:00〜18:00のため、18:00・19:00枠を自動でスキップします
+        </p>
+      </div>
+    </div>
+
+    <div id="add-modal-error" style="color:var(--danger);font-size:13px;margin-bottom:8px;display:none"></div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" style="flex:1" onclick="submitAddSlot()">追加する</button>
+      <button class="btn btn-outline" style="flex:1" onclick="closeAddModal()">キャンセル</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── モーダル: 枠詳細 ───────────────────────────── -->
+<div class="modal-overlay hidden" id="slot-modal">
+  <div class="modal">
+    <div class="modal-title" id="slot-modal-title"></div>
+    <div id="slot-modal-body"></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" style="flex:1" onclick="closeSlotModal()">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<style>
+.tab-btn {
+  background: none;
+  border: none;
+  padding: 10px 18px;
+  font-size: 14px;
+  cursor: pointer;
+  color: var(--muted);
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  font-weight: 600;
+}
+.tab-btn.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+</style>
+
+<script src="/static/js/admin.js"></script>
+</body>
+</html>

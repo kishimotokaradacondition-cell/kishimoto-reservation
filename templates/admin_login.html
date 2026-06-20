@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>管理者ログイン | きしもとカラダcondiTion</title>
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px">
+  <div style="width:100%;max-width:360px">
+    <div style="text-align:center;margin-bottom:28px">
+      <div style="font-size:40px;margin-bottom:8px">🔐</div>
+      <div style="font-size:20px;font-weight:700;color:var(--primary)">管理者ログイン</div>
+      <div style="font-size:13px;color:var(--muted);margin-top:4px">きしもとカラダcondiTion 予約管理</div>
+    </div>
+    <div class="card">
+      <div class="form-group">
+        <label>パスワード<span>*</span></label>
+        <input type="password" id="pw-input" placeholder="パスワードを入力" onkeydown="if(event.key==='Enter')doLogin()">
+      </div>
+      <div id="login-error" style="color:var(--danger);font-size:13px;margin-bottom:12px;display:none">
+        パスワードが違います
+      </div>
+      <button class="btn btn-primary" onclick="doLogin()">ログイン</button>
+    </div>
+  </div>
+</div>
+<script>
+async function doLogin() {
+  const pw = document.getElementById('pw-input').value;
+  const err = document.getElementById('login-error');
+  err.style.display = 'none';
+  const res = await fetch('/api/admin/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: pw }),
+    credentials: 'include'
+  });
+  if (res.ok) {
+    window.location.href = '/admin';
+  } else {
+    err.style.display = 'block';
+  }
+}
+</script>
+</body>
+</html>
