@@ -205,12 +205,18 @@ def init_db():
                 slot_id         INTEGER NOT NULL,
                 customer_name   TEXT NOT NULL,
                 customer_phone  TEXT NOT NULL,
+                customer_email  TEXT,
                 customer_note   TEXT,
                 status          TEXT DEFAULT 'confirmed',
                 created_at      TEXT DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (slot_id) REFERENCES slots(id)
             );
         """)
+        # 既存DBに customer_email 列がない場合は追加（マイグレーション）
+        try:
+            conn.execute("ALTER TABLE reservations ADD COLUMN customer_email TEXT")
+        except Exception:
+            pass
 
 
 init_db()  # gunicorn起動時も含め、常にDB初期化を実行
