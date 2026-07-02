@@ -23,6 +23,7 @@ try:
     TWILIO_FROM_NUMBER  = getattr(_cfg, "TWILIO_FROM_NUMBER",  "")
     SMS_RECIPIENTS      = getattr(_cfg, "SMS_RECIPIENTS",      [])
 except Exception:
+    _cfg = None
     GMAIL_ADDRESS      = os.environ.get("GMAIL_ADDRESS", "")
     GMAIL_APP_PASSWORD = os.environ.get("GMAIL_APP_PASSWORD", "")
     NOTIFY_EMAIL       = os.environ.get("NOTIFY_EMAIL", "")
@@ -32,6 +33,10 @@ except Exception:
     TWILIO_AUTH_TOKEN  = os.environ.get("TWILIO_AUTH_TOKEN", "")
     TWILIO_FROM_NUMBER = os.environ.get("TWILIO_FROM_NUMBER", "")
     SMS_RECIPIENTS     = [n.strip() for n in os.environ.get("SMS_RECIPIENTS", "").split(",") if n.strip()]
+# SendGrid APIキー（設定されていればSMTPの代わりにHTTPS APIでメール送信）
+SENDGRID_API_KEY = getattr(_cfg, "SENDGRID_API_KEY", "") if _cfg else ""
+SENDGRID_API_KEY = SENDGRID_API_KEY or os.environ.get("SENDGRID_API_KEY", "")
+
 try:
     import jpholiday
     def is_jp_holiday(date_str: str) -> bool:
@@ -69,7 +74,24 @@ def _make_body(res_id, customer_name, customer_phone, customer_note,
 
 
 def _send_one(to_addr, subject, body):
-    """1通送信（SMTP接続込み）"""
+    """1通送信（SendGrid API優先・未設定時はGmail SMTP）"""
+    if SENDGRID_API_KEY:
+        payload = json.dumps({
+            "personalizations": [{"to": [{"email": to_addr}]}],
+            "from": {"email": GMAIL_ADDRESS, "name": "きしもとカラダ整体"},
+            "subject": subject,
+            "content": [{"type": "text/plain", "value": body}],
+        }).encode("utf-8")
+        req = urllib.request.Request(
+            "https://api.sendgrid.com/v3/mail/send",
+            data=payload,
+            headers={
+                "Authorization": f"Bearer {SENDGRID_API_KEY}",
+                "Content-Type": "application/json",
+            },
+        )
+        urllib.request.urlopen(req, timeout=10)
+        return
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
     msg["From"]    = GMAIL_ADDRESS
@@ -83,7 +105,7 @@ def _send_one(to_addr, subject, body):
 def _send_email(res_id, customer_name, customer_phone, customer_email,
                 customer_note, slot_date, slot_time, slot_duration):
     """予約確定メールを2通送信（別スレッド実行・失敗してもサーバーは止めない）"""
-    if not GMAIL_APP_PASSWORD:
+    if not (GMAIL_APP_PASSWORD or SENDGRID_API_KEY):
         return
 
     try:
@@ -160,7 +182,7 @@ def _send_gchat():
 
 def _send_alert_emails(customer_name, date_str, time_str):
     """予約アラートを4名のメールアドレスに送信（別スレッド実行）"""
-    if not ALERT_EMAILS or not GMAIL_APP_PASSWORD:
+    if not ALERT_EMAILS or not (GMAIL_APP_PASSWORD or SENDGRID_API_KEY):
         return
     subject = "【予約が入りました】きしもとカラダ整体"
     body = f"予約が入りました。\n\nお名前: {customer_name} 様\n日時: {date_str} {time_str}〜\n\nきしもとカラダcondiTion"
