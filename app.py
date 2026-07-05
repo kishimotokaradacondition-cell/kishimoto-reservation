@@ -37,6 +37,9 @@ except Exception:
 SENDGRID_API_KEY = getattr(_cfg, "SENDGRID_API_KEY", "") if _cfg else ""
 SENDGRID_API_KEY = SENDGRID_API_KEY or os.environ.get("SENDGRID_API_KEY", "")
 
+# 送信元アドレス（ドメイン認証済みアドレス推奨。未設定時はGmailアドレス）
+MAIL_FROM = (getattr(_cfg, "MAIL_FROM", "") if _cfg else "") or os.environ.get("MAIL_FROM", "") or GMAIL_ADDRESS
+
 try:
     import jpholiday
     def is_jp_holiday(date_str: str) -> bool:
@@ -78,7 +81,8 @@ def _send_one(to_addr, subject, body):
     if SENDGRID_API_KEY:
         payload = json.dumps({
             "personalizations": [{"to": [{"email": to_addr}]}],
-            "from": {"email": GMAIL_ADDRESS, "name": "きしもとカラダ整体"},
+            "from": {"email": MAIL_FROM, "name": "きしもとカラダ整体"},
+            "reply_to": {"email": NOTIFY_EMAIL or GMAIL_ADDRESS},
             "subject": subject,
             "content": [{"type": "text/plain", "value": body}],
         }).encode("utf-8")
