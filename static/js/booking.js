@@ -42,8 +42,10 @@ function goStep(n) {
 }
 
 /* ── カレンダー読込・描画 ─────────────────────────── */
+const SVC = (typeof SERVICE !== "undefined") ? SERVICE : "seitai";
+
 async function loadCalendarData() {
-  const res = await fetch("/api/slots/calendar");
+  const res = await fetch(`/api/slots/calendar?service=${SVC}`);
   if (res.ok) state.calData = await res.json();
   renderCalendar();
 }
@@ -106,7 +108,7 @@ function selectDate(iso) {
 
 /* ── 時間帯 ───────────────────────────────────────── */
 async function loadTimeSlots(iso) {
-  const res = await fetch(`/api/slots?date=${iso}`);
+  const res = await fetch(`/api/slots?date=${iso}&service=${SVC}`);
   const slots = await res.json();
 
   document.getElementById("selected-date-label").textContent = fmtDate(iso);
@@ -119,7 +121,7 @@ async function loadTimeSlots(iso) {
     slots.forEach(s => {
       const btn = document.createElement("button");
       btn.className = "time-btn";
-      const isLate = s.time >= "18:00";
+      const isLate = SVC === "seitai" && s.time >= "18:00";
       btn.innerHTML = `${fmtTime(s.time)}<small>${s.duration}分</small>${isLate ? '<span class="weekday-label">平日のみ</span>' : ''}`;
       btn.addEventListener("click", () => {
         document.querySelectorAll(".time-btn").forEach(b => b.classList.remove("selected"));
