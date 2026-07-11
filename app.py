@@ -33,6 +33,7 @@ except Exception:
     TWILIO_AUTH_TOKEN  = os.environ.get("TWILIO_AUTH_TOKEN", "")
     TWILIO_FROM_NUMBER = os.environ.get("TWILIO_FROM_NUMBER", "")
     SMS_RECIPIENTS     = [n.strip() for n in os.environ.get("SMS_RECIPIENTS", "").split(",") if n.strip()]
+
 # SendGrid APIキー（設定されていればSMTPの代わりにHTTPS APIでメール送信）
 SENDGRID_API_KEY = getattr(_cfg, "SENDGRID_API_KEY", "") if _cfg else ""
 SENDGRID_API_KEY = SENDGRID_API_KEY or os.environ.get("SENDGRID_API_KEY", "")
@@ -57,10 +58,16 @@ HOLIDAY_CUTOFF = "18:00:00"
 
 DOW_JA = ["月","火","水","木","金","土","日"]
 
+# サービス種別ラベル
+SERVICE_LABELS = {"seitai": "きしもとカラダ整体", "hoken": "保険診療"}
+
+def service_label(service):
+    return SERVICE_LABELS.get(service or "seitai", "きしもとカラダ整体")
+
 def _make_body(res_id, customer_name, customer_phone, customer_note,
-               date_str, time_str, slot_duration):
+               date_str, time_str, slot_duration, label="きしもとカラダ整体"):
     """メール本文を生成"""
-    return f"""きしもとカラダ整体 予約確認
+    return f"""{label} 予約確認
 {"="*40}
 
 予約番号   : No.{res_id}
@@ -107,25 +114,26 @@ def _send_one(to_addr, subject, body):
 
 
 def _send_email(res_id, customer_name, customer_phone, customer_email,
-                customer_note, slot_date, slot_time, slot_duration):
+                customer_note, slot_date, slot_time, slot_duration, service="seitai"):
     """予約確定メールを2通送信（別スレッド実行・失敗してもサーバーは止めない）"""
     if not (GMAIL_APP_PASSWORD or SENDGRID_API_KEY):
         return
 
     try:
+        label = service_label(service)
         d = date.fromisoformat(slot_date)
         dow = DOW_JA[d.weekday()]
         date_str = f"{d.year}年{d.month}月{d.day}日（{dow}）"
         time_str = slot_time[:5]
         body = _make_body(res_id, customer_name, customer_phone,
-                          customer_note, date_str, time_str, slot_duration)
+                          customer_note, date_str, time_str, slot_duration, label)
 
         # ── Email 1: お客様へ予約確認 ──────────────────────
         if customer_email:
             try:
                 _send_one(
                     customer_email,
-                    f"【ご予約確定】きしもとカラダ整体 {date_str} {time_str}〜",
+                    f"【ご予約確定】{label} {date_str} {time_str}〜",
                     f"{customer_name} 様\n\nご予約が確定しました。\n\n" + body
                 )
                 print(f"[mail] お客様へ送信完了 → {customer_email}  No.{res_id}")
@@ -184,12 +192,13 @@ def _send_gchat():
         print(f"[gchat] 送信失敗: {e}")
 
 
-def _send_alert_emails(customer_name, date_str, time_str):
+def _send_alert_emails(customer_name, date_str, time_str, service="seitai"):
     """予約アラートを4名のメールアドレスに送信（別スレッド実行）"""
     if not ALERT_EMAILS or not (GMAIL_APP_PASSWORD or SENDGRID_API_KEY):
         return
-    subject = "【予約が入りました】きしもとカラダ整体"
-    body = f"予約が入りました。\n\nお名前: {customer_name} 様\n日時: {date_str} {time_str}〜\n\nきしもとカラダcondiTion"
+    label = service_label(service)
+    subject = f"【予約が入りました】{label}"
+    body = f"予約が入りました。\n\n種別: {label}\nお名前: {customer_name} 様\n日時: {date_str} {time_str}〜\n\nきしもとカラダcondiTion"
     for to in ALERT_EMAILS:
         try:
             _send_one(to, subject, body)
@@ -243,6 +252,11 @@ def init_db():
             conn.execute("ALTER TABLE reservations ADD COLUMN customer_email TEXT")
         except Exception:
             pass
+        # 既存DBに service 列がない場合は追加（整体=seitai / 保険=hoken）
+        try:
+            conn.execute("ALTER TABLE slots ADD COLUMN service TEXT DEFAULT 'seitai'")
+        except Exception:
+            pass
 
 
 init_db()  # gunicorn起動時も含め、常にDB初期化を実行
@@ -263,7 +277,12 @@ def login_required(f):
 
 @app.route("/")
 def booking_page():
-    return render_template("booking.html")
+    return render_template("booking.html", service="seitai")
+
+
+@app.route("/hoken")
+def hoken_booking_page():
+    return render_template("booking.html", service="hoken")
 
 
 @app.route("/admin")
@@ -310,13 +329,14 @@ def create_slot():
         inserted = 0
         for s in slots:
             t = s.get("time", "")
-            # 祝日は HOLIDAY_CUTOFF 以降のスロットをスキップ
-            if holiday_adjust and is_jp_holiday(s["date"]) and t >= HOLIDAY_CUTOFF:
+            svc = s.get("service", "seitai")
+            # 祝日は HOLIDAY_CUTOFF 以降のスロットをスキップ（整体のみ）
+            if holiday_adjust and svc == "seitai" and is_jp_holiday(s["date"]) and t >= HOLIDAY_CUTOFF:
                 continue
             try:
                 conn.execute(
-                    "INSERT OR IGNORE INTO slots (date, time, duration) VALUES (?,?,?)",
-                    (s["date"], t, s.get("duration", 45)),
+                    "INSERT OR IGNORE INTO slots (date, time, duration, service) VALUES (?,?,?,?)",
+                    (s["date"], t, s.get("duration", 45), svc),
                 )
                 if conn.execute("SELECT changes()").fetchone()[0]:
                     inserted += 1
@@ -380,9 +400,9 @@ def delete_slot(slot_id):
 def list_reservations():
     with get_db() as conn:
         rows = conn.execute("""
-            SELECT r.id, r.customer_name, r.customer_phone, r.customer_note,
+            SELECT r.id, r.slot_id, r.customer_name, r.customer_phone, r.customer_note,
                    r.status, r.created_at,
-                   s.date, s.time, s.duration
+                   s.date, s.time, s.duration, s.service
             FROM reservations r
             JOIN slots s ON r.slot_id = s.id
             WHERE r.status = 'confirmed'
@@ -409,7 +429,7 @@ def admin_calendar():
     month = request.args.get("month", date.today().strftime("%Y-%m"))
     with get_db() as conn:
         rows = conn.execute("""
-            SELECT s.id, s.date, s.time, s.duration, s.is_available,
+            SELECT s.id, s.date, s.time, s.duration, s.is_available, s.service,
                    (SELECT COUNT(*) FROM reservations r WHERE r.slot_id=s.id AND r.status='confirmed') AS booked
             FROM slots s
             WHERE s.date LIKE ?
@@ -424,21 +444,22 @@ def admin_calendar():
 def get_slots():
     """date=YYYY-MM-DD で利用可能な空き枠を返す"""
     req_date = request.args.get("date")
+    service = request.args.get("service", "seitai")
     if not req_date:
         return jsonify({"error": "date required"}), 400
     with get_db() as conn:
         rows = conn.execute("""
-            SELECT s.id, s.date, s.time, s.duration,
+            SELECT s.id, s.date, s.time, s.duration, s.service,
                    (SELECT COUNT(*) FROM reservations r WHERE r.slot_id=s.id AND r.status='confirmed') AS booked
             FROM slots s
-            WHERE s.date=? AND s.is_available=1
+            WHERE s.date=? AND s.is_available=1 AND s.service=?
             ORDER BY s.time
-        """, (req_date,)).fetchall()
+        """, (req_date, service)).fetchall()
     holiday = is_jp_holiday(req_date)
     result = [
         dict(r) for r in rows
         if r["booked"] == 0
-        and not (holiday and r["time"] >= HOLIDAY_CUTOFF)
+        and not (holiday and service == "seitai" and r["time"] >= HOLIDAY_CUTOFF)
     ]
     return jsonify(result)
 
@@ -447,6 +468,7 @@ def get_slots():
 def slots_calendar():
     """今日から30日間、日付ごとの空き有無を返す"""
     today = date.today()
+    service = request.args.get("service", "seitai")
     dates = {}
     with get_db() as conn:
         rows = conn.execute("""
@@ -456,9 +478,9 @@ def slots_calendar():
                        (SELECT COUNT(*) FROM reservations r WHERE r.slot_id=s.id AND r.status='confirmed')=0
                        THEN 1 ELSE 0 END) as available
             FROM slots s
-            WHERE s.date >= ?
+            WHERE s.date >= ? AND s.service = ?
             GROUP BY s.date
-        """, (today.isoformat(),)).fetchall()
+        """, (today.isoformat(), service)).fetchall()
     for r in rows:
         dates[r["date"]] = {"total": r["total"], "available": r["available"]}
     return jsonify(dates)
@@ -495,11 +517,13 @@ def create_reservation():
         )
         res_id = cur.lastrowid
 
+    slot_service = slot["service"] if "service" in slot.keys() else "seitai"
+
     # 予約確定メールを別スレッドで送信（失敗しても予約は確定）
     threading.Thread(
         target=_send_email,
         args=(res_id, name, phone, email, note,
-              slot["date"], slot["time"], slot["duration"]),
+              slot["date"], slot["time"], slot["duration"], slot_service),
         daemon=True,
     ).start()
 
@@ -512,7 +536,7 @@ def create_reservation():
     # 予約アラートメールを4名に送信
     threading.Thread(
         target=_send_alert_emails,
-        args=(name, slot["date"], slot["time"]),
+        args=(name, slot["date"], slot["time"], slot_service),
         daemon=True,
     ).start()
 
