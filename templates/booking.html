@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ご予約 | きしもとカラダ整体</title>
+<title>{% if service == 'hoken' %}保険診療のご予約{% else %}ご予約{% endif %} | きしもとカラダcondiTion</title>
 <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
 
 <header class="site-header">
   <div>
-    <div class="logo">きしもとカラダ整体</div>
+    <div class="logo">{% if service == 'hoken' %}保険診療のご予約{% else %}きしもとカラダ整体{% endif %}</div>
     <div class="subtitle">きしもとカラダcondiTion｜神戸市垂水区舞子</div>
   </div>
 </header>
@@ -70,8 +70,13 @@
       <div class="card-title">時間帯を選択してください</div>
       <div class="time-grid" id="time-grid"></div>
       <p style="font-size:12px;color:var(--muted);margin-top:12px">
+        {% if service == 'hoken' %}
+        ※ 施術時間は約30分です<br>
+        ※ 受付：月曜・木曜 19:30〜21:30
+        {% else %}
         ※ 施術時間は約45分です<br>
         ※ 定休日：日曜・火曜
+        {% endif %}
       </p>
     </div>
     <button class="btn btn-outline" onclick="goStep(1)">← 日程を選び直す</button>
@@ -156,6 +161,7 @@
 
 <div id="toast"></div>
 
+<script>const SERVICE = "{{ service|default('seitai') }}";</script>
 <script src="/static/js/booking.js"></script>
 </body>
 </html>
