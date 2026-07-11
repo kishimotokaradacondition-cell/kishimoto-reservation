@@ -10,11 +10,47 @@ const state = {
 };
 
 const DOW_JA = ["日","月","火","水","木","金","土"];
-// きしもとカラダ整体 基本時間帯（施術45分）
-const PRESET_TIMES = [
-  "11:15", "12:15", "13:15", "14:15", "15:30", "17:00", "18:00", "19:00",
-];
-const SLOT_DURATION = 45;
+// サービス種別ごとの設定
+const SERVICE_CONFIG = {
+  seitai: {
+    label: "整体",
+    times: ["11:15", "12:15", "13:15", "14:15", "15:30", "17:00", "18:00", "19:00"],
+    duration: 45,
+    dows: [1, 3, 4, 5, 6],   // 月水木金土（日・火は定休）
+  },
+  hoken: {
+    label: "保険",
+    times: ["19:30", "20:00", "20:30", "21:00", "21:30"],
+    duration: 30,
+    dows: [1, 4],            // 月・木のみ
+  },
+};
+
+function currentService() {
+  return document.querySelector('#service-select input[name="service"]:checked')?.value || "seitai";
+}
+
+function onServiceChange() {
+  const svc = currentService();
+  const cfg = SERVICE_CONFIG[svc];
+
+  document.querySelectorAll("#service-select label").forEach(l => {
+    const on = l.querySelector("input").checked;
+    l.style.borderColor = on ? "var(--primary)" : "var(--border)";
+    l.style.background  = on ? "var(--primary-lt)" : "";
+  });
+
+  buildTimeCheckboxes();
+
+  document.querySelectorAll("#dow-checkboxes input").forEach(cb => {
+    cb.checked = cfg.dows.includes(parseInt(cb.value));
+  });
+
+  const hg = document.getElementById("holiday-adjust-group");
+  if (hg) hg.style.display = svc === "seitai" ? "" : "none";
+
+  document.getElementById("add-time").value = cfg.times[0];
+}
 
 function monthKey() {
   return `${state.year}-${String(state.month+1).padStart(2,"0")}`;
@@ -132,6 +168,10 @@ function showDaySlots(iso) {
       const li = document.createElement("li");
       li.className = "slot-item" + (s.booked ? " booked" : (!s.is_available ? " unavail" : ""));
 
+      const svcTag = s.service === "hoken"
+        ? '<span class="tag" style="background:#e3f2fd;color:#1565c0">保険</span>'
+        : '<span class="tag" style="background:#f0f4ef;color:var(--primary)">整体</span>';
+
       let statusTag = s.booked
         ? '<span class="tag" style="background:#fdecea;color:#c33">予約済</span>'
         : (s.is_available
@@ -142,6 +182,7 @@ function showDaySlots(iso) {
         <div>
           <span style="font-weight:700;font-size:15px">${fmtTime(s.time)}</span>
           <span style="font-size:12px;color:var(--muted);margin-left:6px">${s.duration}分</span>
+          ${svcTag}
           ${statusTag}
         </div>
         <div style="display:flex;gap:6px">
@@ -242,13 +283,14 @@ async function loadReservations() {
     <div style="overflow-x:auto">
     <table class="res-table">
       <thead><tr>
-        <th>日付</th><th>時間</th><th>お名前</th><th>電話番号</th><th>ご要望</th><th></th>
+        <th>日付</th><th>時間</th><th>種別</th><th>お名前</th><th>電話番号</th><th>ご要望</th><th></th>
       </tr></thead>
       <tbody>
         ${list.map(r => `
           <tr>
             <td>${fmtDate(r.date)}</td>
             <td>${fmtTime(r.time)}</td>
+            <td>${r.service === "hoken" ? "保険" : "整体"}</td>
             <td style="font-weight:600">${r.customer_name}</td>
             <td>${r.customer_phone}</td>
             <td style="font-size:12px;color:var(--muted)">${r.customer_note || "—"}</td>
@@ -264,9 +306,9 @@ async function loadReservations() {
 function openAddModal() {
   state.addDayPreset = null;
   document.getElementById("add-date").value = "";
-  document.getElementById("add-time").value = "10:00";
   document.getElementById("add-modal-error").style.display = "none";
   setAddMode("single");
+  onServiceChange();
   document.getElementById("add-modal").classList.remove("hidden");
 }
 
@@ -278,6 +320,7 @@ function openAddModalForDay() {
   document.getElementById("bulk-end").value   = iso;
   document.getElementById("add-modal-error").style.display = "none";
   setAddMode("single");
+  onServiceChange();
   document.getElementById("add-modal").classList.remove("hidden");
 }
 
@@ -294,7 +337,7 @@ function setAddMode(mode) {
   document.getElementById("add-mode-bulk").classList.toggle("btn-primary", mode === "bulk");
   document.getElementById("add-mode-bulk").classList.toggle("btn-outline", mode !== "bulk");
 
-  if (mode === "bulk" && !document.getElementById("time-checkboxes").children.length) {
+  if (mode === "bulk") {
     buildTimeCheckboxes();
   }
 }
@@ -302,7 +345,7 @@ function setAddMode(mode) {
 function buildTimeCheckboxes() {
   const box = document.getElementById("time-checkboxes");
   box.innerHTML = "";
-  PRESET_TIMES.forEach((t, i) => {
+  SERVICE_CONFIG[currentService()].times.forEach((t, i) => {
     const label = document.createElement("label");
     label.style.cssText = "display:flex;align-items:center;gap:4px;font-size:14px;font-weight:400;cursor:pointer;padding:6px 8px;border:1.5px solid var(--border);border-radius:8px;justify-content:center";
     label.innerHTML = `<input type="radio" name="bulk-time" value="${t}" style="accent-color:var(--primary)"> ${t}`;
@@ -329,12 +372,14 @@ async function submitAddSlot() {
   errEl.style.display = "none";
 
   let slots = [];
+  const svc = currentService();
+  const duration = SERVICE_CONFIG[svc].duration;
 
   if (state.addMode === "single") {
     const date = document.getElementById("add-date").value;
     const time = document.getElementById("add-time").value;
     if (!date || !time) { errEl.textContent = "日付と時間を入力してください"; errEl.style.display = "block"; return; }
-    slots = [{ date, time: time + ":00", duration: SLOT_DURATION }];
+    slots = [{ date, time: time + ":00", duration, service: svc }];
   } else {
     const start = document.getElementById("bulk-start").value;
     const end   = document.getElementById("bulk-end").value;
@@ -352,14 +397,14 @@ async function submitAddSlot() {
         const y = cur.getFullYear();
         const mo = String(cur.getMonth() + 1).padStart(2, "0");
         const d  = String(cur.getDate()).padStart(2, "0");
-        slots.push({ date: `${y}-${mo}-${d}`, time: selTime + ":00", duration: SLOT_DURATION });
+        slots.push({ date: `${y}-${mo}-${d}`, time: selTime + ":00", duration, service: svc });
       }
       cur.setDate(cur.getDate() + 1);
     }
     if (!slots.length) { errEl.textContent = "条件に合う日程がありません"; errEl.style.display = "block"; return; }
   }
 
-  const holidayAdjust = state.addMode === "bulk"
+  const holidayAdjust = (state.addMode === "bulk" && svc === "seitai")
     ? (document.getElementById("holiday-adjust")?.checked ?? true)
     : false;
 
