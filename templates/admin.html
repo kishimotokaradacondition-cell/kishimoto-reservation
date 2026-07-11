@@ -75,6 +75,18 @@
   <div class="modal">
     <div class="modal-title">空き枠を追加</div>
 
+    <div class="form-group">
+      <label>予約種別</label>
+      <div id="service-select" style="display:flex;gap:8px;margin-top:6px">
+        <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;font-size:14px;font-weight:600;cursor:pointer;padding:8px;border:1.5px solid var(--primary);border-radius:8px;background:var(--primary-lt)">
+          <input type="radio" name="service" value="seitai" checked style="accent-color:var(--primary)" onchange="onServiceChange()"> 整体
+        </label>
+        <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;font-size:14px;font-weight:600;cursor:pointer;padding:8px;border:1.5px solid var(--border);border-radius:8px">
+          <input type="radio" name="service" value="hoken" style="accent-color:var(--primary)" onchange="onServiceChange()"> 保険（月・木 夜間）
+        </label>
+      </div>
+    </div>
+
     <div style="display:flex;gap:8px;margin-bottom:16px">
       <button class="btn btn-outline btn-sm" id="add-mode-single" onclick="setAddMode('single')" style="flex:1">1枠ずつ</button>
       <button class="btn btn-outline btn-sm" id="add-mode-bulk"   onclick="setAddMode('bulk')"   style="flex:1">まとめて追加</button>
@@ -136,7 +148,7 @@
         <div id="time-checkboxes" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:6px">
         </div>
       </div>
-      <div class="form-group">
+      <div class="form-group" id="holiday-adjust-group">
         <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:600;color:var(--text)">
           <input type="checkbox" id="holiday-adjust" checked>
           祝日は最終17:00まで（18:00・19:00を自動除外）
