@@ -233,7 +233,8 @@ def init_db():
                 duration     INTEGER DEFAULT 60,
                 is_available INTEGER DEFAULT 1,
                 created_at   TEXT DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(date, time)
+                service      TEXT DEFAULT 'seitai',
+                UNIQUE(date, time, service)
             );
             CREATE TABLE IF NOT EXISTS reservations (
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -255,6 +256,31 @@ def init_db():
         # 既存DBに service 列がない場合は追加（整体=seitai / 保険=hoken）
         try:
             conn.execute("ALTER TABLE slots ADD COLUMN service TEXT DEFAULT 'seitai'")
+        except Exception:
+            pass
+        # UNIQUE(date,time) → UNIQUE(date,time,service) へ移行
+        # （整体と保険で同じ日時の枠を持てるようにする）
+        try:
+            ddl = conn.execute(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='slots'"
+            ).fetchone()[0]
+            if "UNIQUE(date, time)" in ddl and "UNIQUE(date, time, service)" not in ddl:
+                conn.executescript("""
+                    CREATE TABLE slots_new (
+                        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                        date         TEXT NOT NULL,
+                        time         TEXT NOT NULL,
+                        duration     INTEGER DEFAULT 60,
+                        is_available INTEGER DEFAULT 1,
+                        created_at   TEXT DEFAULT CURRENT_TIMESTAMP,
+                        service      TEXT DEFAULT 'seitai',
+                        UNIQUE(date, time, service)
+                    );
+                    INSERT INTO slots_new (id, date, time, duration, is_available, created_at, service)
+                        SELECT id, date, time, duration, is_available, created_at, service FROM slots;
+                    DROP TABLE slots;
+                    ALTER TABLE slots_new RENAME TO slots;
+                """)
         except Exception:
             pass
 
