@@ -20,9 +20,12 @@ const SERVICE_CONFIG = {
   },
   hoken: {
     label: "保険",
-    times: ["19:30", "20:00", "20:30", "21:00", "21:30"],
+    times: ["11:00", "11:30", "12:00", "12:30", "13:00", "13:30",
+            "14:00", "14:30", "15:00", "15:30", "16:00", "16:30",
+            "17:00", "17:30", "18:00", "18:30", "19:00", "19:30",
+            "20:00", "20:30", "21:00", "21:30"],
     duration: 30,
-    dows: [1, 4],            // 月・木のみ
+    dows: [1, 3, 4, 5, 6],   // 月・水・木・金・土
   },
 };
 
@@ -34,21 +37,26 @@ function onServiceChange() {
   const svc = currentService();
   const cfg = SERVICE_CONFIG[svc];
 
+  // 種別ラベルの見た目更新
   document.querySelectorAll("#service-select label").forEach(l => {
     const on = l.querySelector("input").checked;
     l.style.borderColor = on ? "var(--primary)" : "var(--border)";
     l.style.background  = on ? "var(--primary-lt)" : "";
   });
 
+  // 時間帯ラジオを再構築
   buildTimeCheckboxes();
 
+  // 曜日チェックをデフォルトに設定
   document.querySelectorAll("#dow-checkboxes input").forEach(cb => {
     cb.checked = cfg.dows.includes(parseInt(cb.value));
   });
 
+  // 祝日除外オプションは整体のみ表示
   const hg = document.getElementById("holiday-adjust-group");
   if (hg) hg.style.display = svc === "seitai" ? "" : "none";
 
+  // 1枠ずつモードの時間初期値
   document.getElementById("add-time").value = cfg.times[0];
 }
 
@@ -168,15 +176,15 @@ function showDaySlots(iso) {
       const li = document.createElement("li");
       li.className = "slot-item" + (s.booked ? " booked" : (!s.is_available ? " unavail" : ""));
 
-      const svcTag = s.service === "hoken"
-        ? '<span class="tag" style="background:#e3f2fd;color:#1565c0">保険</span>'
-        : '<span class="tag" style="background:#f0f4ef;color:var(--primary)">整体</span>';
-
       let statusTag = s.booked
         ? '<span class="tag" style="background:#fdecea;color:#c33">予約済</span>'
         : (s.is_available
             ? '<span class="tag tag-confirmed">空き</span>'
             : '<span class="tag" style="background:#eee;color:#999">非公開</span>');
+
+      const svcTag = s.service === "hoken"
+        ? '<span class="tag" style="background:#e3f2fd;color:#1565c0">保険</span>'
+        : '<span class="tag" style="background:#f0f4ef;color:var(--primary)">整体</span>';
 
       li.innerHTML = `
         <div>
