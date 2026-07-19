@@ -5,6 +5,7 @@ import os
 import smtplib
 import threading
 import json
+import time
 import urllib.request
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -41,6 +42,24 @@ SENDGRID_API_KEY = SENDGRID_API_KEY or os.environ.get("SENDGRID_API_KEY", "")
 # 送信元アドレス（ドメイン認証済みアドレス推奨。未設定時はGmailアドレス）
 MAIL_FROM = (getattr(_cfg, "MAIL_FROM", "") if _cfg else "") or os.environ.get("MAIL_FROM", "") or GMAIL_ADDRESS
 
+# ── Stripe（コンサルティング事前決済用） ──────────────────
+# STRIPE_SECRET_KEY を設定すると /consulting の予約が事前カード決済必須になる
+STRIPE_SECRET_KEY     = (getattr(_cfg, "STRIPE_SECRET_KEY", "") if _cfg else "") or os.environ.get("STRIPE_SECRET_KEY", "")
+STRIPE_WEBHOOK_SECRET = (getattr(_cfg, "STRIPE_WEBHOOK_SECRET", "") if _cfg else "") or os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+# カウンセリング料金（円・税込）
+CONSULTING_PRICE = int((getattr(_cfg, "CONSULTING_PRICE", 0) if _cfg else 0) or os.environ.get("CONSULTING_PRICE", "10000"))
+# 決済ページからの戻り先URL（未設定時はリクエストのホストから自動判定）
+BASE_URL = (getattr(_cfg, "BASE_URL", "") if _cfg else "") or os.environ.get("BASE_URL", "")
+# 未決済の仮予約を解放するまでの分数
+PENDING_EXPIRE_MINUTES = 30
+
+try:
+    import stripe
+    if STRIPE_SECRET_KEY:
+        stripe.api_key = STRIPE_SECRET_KEY
+except ImportError:
+    stripe = None
+
 try:
     import jpholiday
     def is_jp_holiday(date_str: str) -> bool:
@@ -59,14 +78,20 @@ HOLIDAY_CUTOFF = "18:00:00"
 DOW_JA = ["月","火","水","木","金","土","日"]
 
 # サービス種別ラベル
-SERVICE_LABELS = {"seitai": "きしもとカラダ整体", "hoken": "保険診療"}
+SERVICE_LABELS = {
+    "seitai": "きしもとカラダ整体",
+    "hoken": "保険診療",
+    "consulting": "きしもとマネジメントオフィス コンサルティング",
+}
 
 def service_label(service):
     return SERVICE_LABELS.get(service or "seitai", "きしもとカラダ整体")
 
 def _make_body(res_id, customer_name, customer_phone, customer_note,
-               date_str, time_str, slot_duration, label="きしもとカラダ整体"):
+               date_str, time_str, slot_duration, label="きしもとカラダ整体",
+               paid_amount=None):
     """メール本文を生成"""
+    paid_line = f"お支払い   : クレジットカード決済済み（¥{paid_amount:,}）\n" if paid_amount else ""
     return f"""{label} 予約確認
 {"="*40}
 
@@ -75,7 +100,7 @@ def _make_body(res_id, customer_name, customer_phone, customer_note,
 お名前     : {customer_name} 様
 電話番号   : {customer_phone}
 ご要望     : {customer_note or "（なし）"}
-受付日時   : {datetime.now().strftime("%Y-%m-%d %H:%M")}
+{paid_line}受付日時   : {datetime.now().strftime("%Y-%m-%d %H:%M")}
 
 {"="*40}
 きしもとカラダcondiTion
@@ -114,7 +139,8 @@ def _send_one(to_addr, subject, body):
 
 
 def _send_email(res_id, customer_name, customer_phone, customer_email,
-                customer_note, slot_date, slot_time, slot_duration, service="seitai"):
+                customer_note, slot_date, slot_time, slot_duration, service="seitai",
+                paid_amount=None):
     """予約確定メールを2通送信（別スレッド実行・失敗してもサーバーは止めない）"""
     if not (GMAIL_APP_PASSWORD or SENDGRID_API_KEY):
         return
@@ -126,7 +152,8 @@ def _send_email(res_id, customer_name, customer_phone, customer_email,
         date_str = f"{d.year}年{d.month}月{d.day}日（{dow}）"
         time_str = slot_time[:5]
         body = _make_body(res_id, customer_name, customer_phone,
-                          customer_note, date_str, time_str, slot_duration, label)
+                          customer_note, date_str, time_str, slot_duration, label,
+                          paid_amount)
 
         # ── Email 1: お客様へ予約確認 ──────────────────────
         if customer_email:
@@ -207,6 +234,24 @@ def _send_alert_emails(customer_name, date_str, time_str, service="seitai"):
             print(f"[alert] 失敗 → {to}: {e}")
 
 
+def _notify_confirmed(res_id, name, phone, email, note,
+                      slot_date, slot_time, slot_duration, service, paid_amount=None):
+    """予約確定時の通知一式（メール・SMS・Google Chat・アラート）を別スレッドで送信"""
+    threading.Thread(
+        target=_send_email,
+        args=(res_id, name, phone, email, note,
+              slot_date, slot_time, slot_duration, service, paid_amount),
+        daemon=True,
+    ).start()
+    threading.Thread(target=_send_sms_all, daemon=True).start()
+    threading.Thread(target=_send_gchat, daemon=True).start()
+    threading.Thread(
+        target=_send_alert_emails,
+        args=(name, slot_date, slot_time, service),
+        daemon=True,
+    ).start()
+
+
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "kishimoto-reservation-2026")
 CORS(app, supports_credentials=True)
@@ -258,6 +303,17 @@ def init_db():
             conn.execute("ALTER TABLE slots ADD COLUMN service TEXT DEFAULT 'seitai'")
         except Exception:
             pass
+        # 事前決済用の列を追加（マイグレーション）
+        for ddl in (
+            "ALTER TABLE reservations ADD COLUMN payment_status TEXT",
+            "ALTER TABLE reservations ADD COLUMN amount INTEGER",
+            "ALTER TABLE reservations ADD COLUMN stripe_session_id TEXT",
+            "ALTER TABLE reservations ADD COLUMN paid_at TEXT",
+        ):
+            try:
+                conn.execute(ddl)
+            except Exception:
+                pass
         # UNIQUE(date,time) → UNIQUE(date,time,service) へ移行
         # （整体と保険で同じ日時の枠を持てるようにする）
         try:
@@ -288,6 +344,19 @@ def init_db():
 init_db()  # gunicorn起動時も含め、常にDB初期化を実行
 
 
+def _expire_stale_pending(conn):
+    """支払い期限切れの仮予約を解放（枠を再度予約可能にする）"""
+    conn.execute(
+        "UPDATE reservations SET status='expired' "
+        "WHERE status='pending_payment' AND created_at <= datetime('now', ?)",
+        (f"-{PENDING_EXPIRE_MINUTES} minutes",),
+    )
+
+
+# 枠を塞ぐ予約ステータス（確定＋支払い待ちの仮予約）
+ACTIVE_STATUS_SQL = "status IN ('confirmed','pending_payment')"
+
+
 # ── 認証 ─────────────────────────────────────────────────
 
 def login_required(f):
@@ -309,6 +378,11 @@ def booking_page():
 @app.route("/hoken")
 def hoken_booking_page():
     return render_template("booking.html", service="hoken")
+
+
+@app.route("/consulting")
+def consulting_booking_page():
+    return render_template("booking.html", service="consulting", price=CONSULTING_PRICE)
 
 
 @app.route("/admin")
@@ -414,7 +488,8 @@ def update_slot(slot_id):
 @login_required
 def delete_slot(slot_id):
     with get_db() as conn:
-        row = conn.execute("SELECT id FROM reservations WHERE slot_id=? AND status='confirmed'", (slot_id,)).fetchone()
+        _expire_stale_pending(conn)
+        row = conn.execute(f"SELECT id FROM reservations WHERE slot_id=? AND {ACTIVE_STATUS_SQL}", (slot_id,)).fetchone()
         if row:
             return jsonify({"error": "この枠には予約があります。先に予約をキャンセルしてください。"}), 400
         conn.execute("DELETE FROM slots WHERE id=?", (slot_id,))
@@ -427,7 +502,7 @@ def list_reservations():
     with get_db() as conn:
         rows = conn.execute("""
             SELECT r.id, r.slot_id, r.customer_name, r.customer_phone, r.customer_note,
-                   r.status, r.created_at,
+                   r.status, r.created_at, r.payment_status, r.amount,
                    s.date, s.time, s.duration, s.service
             FROM reservations r
             JOIN slots s ON r.slot_id = s.id
@@ -454,9 +529,10 @@ def admin_calendar():
     """month=YYYY-MM 形式で月間スロット一覧を返す"""
     month = request.args.get("month", date.today().strftime("%Y-%m"))
     with get_db() as conn:
-        rows = conn.execute("""
+        _expire_stale_pending(conn)
+        rows = conn.execute(f"""
             SELECT s.id, s.date, s.time, s.duration, s.is_available, s.service,
-                   (SELECT COUNT(*) FROM reservations r WHERE r.slot_id=s.id AND r.status='confirmed') AS booked
+                   (SELECT COUNT(*) FROM reservations r WHERE r.slot_id=s.id AND r.{ACTIVE_STATUS_SQL}) AS booked
             FROM slots s
             WHERE s.date LIKE ?
             ORDER BY s.date, s.time
@@ -474,9 +550,10 @@ def get_slots():
     if not req_date:
         return jsonify({"error": "date required"}), 400
     with get_db() as conn:
-        rows = conn.execute("""
+        _expire_stale_pending(conn)
+        rows = conn.execute(f"""
             SELECT s.id, s.date, s.time, s.duration, s.service,
-                   (SELECT COUNT(*) FROM reservations r WHERE r.slot_id=s.id AND r.status='confirmed') AS booked
+                   (SELECT COUNT(*) FROM reservations r WHERE r.slot_id=s.id AND r.{ACTIVE_STATUS_SQL}) AS booked
             FROM slots s
             WHERE s.date=? AND s.is_available=1 AND s.service=?
             ORDER BY s.time
@@ -497,11 +574,12 @@ def slots_calendar():
     service = request.args.get("service", "seitai")
     dates = {}
     with get_db() as conn:
-        rows = conn.execute("""
+        _expire_stale_pending(conn)
+        rows = conn.execute(f"""
             SELECT s.date,
                    COUNT(*) as total,
                    SUM(CASE WHEN s.is_available=1 AND
-                       (SELECT COUNT(*) FROM reservations r WHERE r.slot_id=s.id AND r.status='confirmed')=0
+                       (SELECT COUNT(*) FROM reservations r WHERE r.slot_id=s.id AND r.{ACTIVE_STATUS_SQL})=0
                        THEN 1 ELSE 0 END) as available
             FROM slots s
             WHERE s.date >= ? AND s.service = ?
@@ -525,6 +603,7 @@ def create_reservation():
         return jsonify({"error": "必須項目が不足しています"}), 400
 
     with get_db() as conn:
+        _expire_stale_pending(conn)
         slot = conn.execute(
             "SELECT * FROM slots WHERE id=? AND is_available=1", (slot_id,)
         ).fetchone()
@@ -532,39 +611,69 @@ def create_reservation():
             return jsonify({"error": "この枠は存在しません"}), 404
 
         existing = conn.execute(
-            "SELECT id FROM reservations WHERE slot_id=? AND status='confirmed'", (slot_id,)
+            f"SELECT id FROM reservations WHERE slot_id=? AND {ACTIVE_STATUS_SQL}", (slot_id,)
         ).fetchone()
         if existing:
             return jsonify({"error": "この時間帯はすでに予約済みです"}), 409
 
+        slot_service = slot["service"] if "service" in slot.keys() else "seitai"
+        # コンサルティングはStripe設定済みなら事前決済必須（仮予約で枠を確保）
+        needs_payment = (slot_service == "consulting" and STRIPE_SECRET_KEY and stripe is not None)
+        status = "pending_payment" if needs_payment else "confirmed"
+
         cur = conn.execute(
-            "INSERT INTO reservations (slot_id, customer_name, customer_phone, customer_email, customer_note) VALUES (?,?,?,?,?)",
-            (slot_id, name, phone, email, note),
+            "INSERT INTO reservations (slot_id, customer_name, customer_phone, customer_email, customer_note, status, amount) VALUES (?,?,?,?,?,?,?)",
+            (slot_id, name, phone, email, note, status,
+             CONSULTING_PRICE if needs_payment else None),
         )
         res_id = cur.lastrowid
 
-    slot_service = slot["service"] if "service" in slot.keys() else "seitai"
+    if needs_payment:
+        d = date.fromisoformat(slot["date"])
+        dt_label = f"{d.year}年{d.month}月{d.day}日（{DOW_JA[d.weekday()]}）{slot['time'][:5]}〜"
+        try:
+            base = (BASE_URL or request.url_root).rstrip("/")
+            if base.startswith("http://") and "localhost" not in base and "127.0.0.1" not in base:
+                base = "https://" + base[len("http://"):]
+            checkout = stripe.checkout.Session.create(
+                mode="payment",
+                line_items=[{
+                    "price_data": {
+                        "currency": "jpy",
+                        "unit_amount": CONSULTING_PRICE,
+                        "product_data": {
+                            "name": f"カウンセリング {dt_label}",
+                            "description": service_label(slot_service),
+                        },
+                    },
+                    "quantity": 1,
+                }],
+                customer_email=email,
+                client_reference_id=str(res_id),
+                metadata={"reservation_id": str(res_id)},
+                success_url=f"{base}/payment/success?session_id={{CHECKOUT_SESSION_ID}}",
+                cancel_url=f"{base}/payment/cancel?rid={res_id}",
+                expires_at=int(time.time()) + PENDING_EXPIRE_MINUTES * 60,
+            )
+        except Exception as e:
+            print(f"[stripe] Checkoutセッション作成失敗: {e}")
+            with get_db() as conn:
+                conn.execute("UPDATE reservations SET status='cancelled' WHERE id=?", (res_id,))
+            return jsonify({"error": "決済ページの作成に失敗しました。時間をおいて再度お試しください。"}), 502
 
-    # 予約確定メールを別スレッドで送信（失敗しても予約は確定）
-    threading.Thread(
-        target=_send_email,
-        args=(res_id, name, phone, email, note,
-              slot["date"], slot["time"], slot["duration"], slot_service),
-        daemon=True,
-    ).start()
+        with get_db() as conn:
+            conn.execute("UPDATE reservations SET stripe_session_id=? WHERE id=?",
+                         (checkout.id, res_id))
+        return jsonify({
+            "ok": True,
+            "payment_required": True,
+            "checkout_url": checkout.url,
+            "reservation_id": res_id,
+        })
 
-    # SMS通知を別スレッドで送信（Twilio設定済み時のみ動作）
-    threading.Thread(target=_send_sms_all, daemon=True).start()
-
-    # Google Chat通知を別スレッドで送信（Webhook URL設定済み時のみ動作）
-    threading.Thread(target=_send_gchat, daemon=True).start()
-
-    # 予約アラートメールを4名に送信
-    threading.Thread(
-        target=_send_alert_emails,
-        args=(name, slot["date"], slot["time"], slot_service),
-        daemon=True,
-    ).start()
+    # 事前決済なし（整体・保険・Stripe未設定時）はここで確定・通知
+    _notify_confirmed(res_id, name, phone, email, note,
+                      slot["date"], slot["time"], slot["duration"], slot_service)
 
     return jsonify({
         "ok": True,
@@ -574,6 +683,118 @@ def create_reservation():
         "duration": slot["duration"],
         "customer_name": name,
     })
+
+
+# ── Stripe 決済 ───────────────────────────────────────────
+
+def _confirm_paid_reservation(res_id):
+    """支払い完了した仮予約を確定し、初回確定時のみ通知を送信（冪等）"""
+    with get_db() as conn:
+        cur = conn.execute(
+            "UPDATE reservations SET status='confirmed', payment_status='paid', paid_at=datetime('now') "
+            "WHERE id=? AND status='pending_payment'", (res_id,))
+        newly_confirmed = cur.rowcount > 0
+        row = conn.execute("""
+            SELECT r.*, s.date AS slot_date, s.time AS slot_time, s.duration, s.service
+            FROM reservations r JOIN slots s ON r.slot_id = s.id
+            WHERE r.id=?
+        """, (res_id,)).fetchone()
+    if newly_confirmed and row:
+        print(f"[stripe] 支払い確認・予約確定 No.{res_id}")
+        _notify_confirmed(res_id, row["customer_name"], row["customer_phone"],
+                          row["customer_email"], row["customer_note"],
+                          row["slot_date"], row["slot_time"], row["duration"],
+                          row["service"], paid_amount=row["amount"])
+    return row
+
+
+def _session_reservation_id(sess):
+    rid = sess.get("client_reference_id") or (sess.get("metadata") or {}).get("reservation_id")
+    return int(rid) if rid else None
+
+
+@app.route("/api/stripe/webhook", methods=["POST"])
+def stripe_webhook():
+    """Stripeからの決済イベント通知を受信"""
+    if stripe is None or not STRIPE_SECRET_KEY:
+        return jsonify({"error": "stripe not configured"}), 503
+
+    payload = request.get_data()
+    try:
+        if STRIPE_WEBHOOK_SECRET:
+            event = stripe.Webhook.construct_event(
+                payload, request.headers.get("Stripe-Signature", ""), STRIPE_WEBHOOK_SECRET)
+        else:
+            # 署名シークレット未設定時は、通知内容を信用せずStripe APIから取り直して検証
+            event = json.loads(payload)
+    except Exception as e:
+        print(f"[stripe] Webhook検証失敗: {e}")
+        return jsonify({"error": "invalid payload"}), 400
+
+    etype = event.get("type", "")
+    obj = (event.get("data") or {}).get("object") or {}
+
+    if etype == "checkout.session.completed":
+        if not STRIPE_WEBHOOK_SECRET:
+            try:
+                obj = stripe.checkout.Session.retrieve(obj.get("id"))
+            except Exception as e:
+                print(f"[stripe] セッション再取得失敗: {e}")
+                return jsonify({"error": "session fetch failed"}), 400
+        rid = _session_reservation_id(obj)
+        if rid and obj.get("payment_status") == "paid":
+            _confirm_paid_reservation(rid)
+    elif etype == "checkout.session.expired":
+        rid = _session_reservation_id(obj)
+        if rid:
+            with get_db() as conn:
+                conn.execute(
+                    "UPDATE reservations SET status='expired' WHERE id=? AND status='pending_payment'",
+                    (rid,))
+            print(f"[stripe] 支払い期限切れ・仮予約解放 No.{rid}")
+
+    return jsonify({"ok": True})
+
+
+@app.route("/payment/success")
+def payment_success():
+    """決済完了後の戻りページ（Webhookが届く前でもここで確定させる）"""
+    session_id = request.args.get("session_id", "")
+    if not (stripe and STRIPE_SECRET_KEY and session_id):
+        return render_template("payment_result.html", ok=False,
+                               message="決済情報を確認できませんでした。お店までお問い合わせください。")
+    try:
+        sess = stripe.checkout.Session.retrieve(session_id)
+    except Exception as e:
+        print(f"[stripe] セッション取得失敗: {e}")
+        return render_template("payment_result.html", ok=False,
+                               message="決済情報の確認に失敗しました。お店までお問い合わせください。")
+
+    rid = _session_reservation_id(sess)
+    if rid and sess.get("payment_status") == "paid":
+        row = _confirm_paid_reservation(rid)
+        if row:
+            d = date.fromisoformat(row["slot_date"])
+            dt_label = f"{d.year}年{d.month}月{d.day}日（{DOW_JA[d.weekday()]}）{row['slot_time'][:5]}〜"
+            return render_template("payment_result.html", ok=True,
+                                   res_id=rid, dt_label=dt_label,
+                                   customer_name=row["customer_name"],
+                                   amount=row["amount"])
+    return render_template("payment_result.html", ok=False,
+                           message="お支払いが完了していません。お手数ですが再度ご予約ください。")
+
+
+@app.route("/payment/cancel")
+def payment_cancel():
+    """決済ページで「戻る」した場合：仮予約を取り消して枠を解放"""
+    rid = request.args.get("rid", "")
+    if rid.isdigit():
+        with get_db() as conn:
+            conn.execute(
+                "UPDATE reservations SET status='cancelled' WHERE id=? AND status='pending_payment'",
+                (int(rid),))
+    return render_template("payment_result.html", ok=False, cancelled=True,
+                           message="お支払いがキャンセルされました。予約は確定していません。")
 
 
 # ── 起動 ─────────────────────────────────────────────────

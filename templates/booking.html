@@ -3,15 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{% if service == 'hoken' %}保険診療のご予約{% else %}ご予約{% endif %} | きしもとカラダcondiTion</title>
+<title>{% if service == 'hoken' %}保険診療のご予約 | きしもとカラダcondiTion{% elif service == 'consulting' %}コンサルティングのご予約 | きしもとマネジメントオフィス{% else %}ご予約 | きしもとカラダcondiTion{% endif %}</title>
 <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
 
 <header class="site-header">
   <div>
-    <div class="logo">{% if service == 'hoken' %}保険診療のご予約{% else %}きしもとカラダ整体{% endif %}</div>
-    <div class="subtitle">きしもとカラダcondiTion｜神戸市垂水区舞子</div>
+    <div class="logo">{% if service == 'hoken' %}保険診療のご予約{% elif service == 'consulting' %}コンサルティングのご予約{% else %}きしもとカラダ整体{% endif %}</div>
+    <div class="subtitle">{% if service == 'consulting' %}きしもとマネジメントオフィス{% else %}きしもとカラダcondiTion｜神戸市垂水区舞子{% endif %}</div>
   </div>
 </header>
 
@@ -73,6 +73,9 @@
         {% if service == 'hoken' %}
         ※ 施術時間は約30分です<br>
         ※ 受付：月・水・木・金・土 11:00〜21:30
+        {% elif service == 'consulting' %}
+        ※ カウンセリング時間は約60分です<br>
+        ※ 料金：¥{{ "{:,}".format(price) }}（事前クレジットカード決済）
         {% else %}
         ※ 施術時間は約45分です<br>
         ※ 定休日：日曜・火曜
@@ -102,8 +105,8 @@
         <input type="email" id="input-email" placeholder="例）taro@example.com" autocomplete="email">
       </div>
       <div class="form-group">
-        <label>ご要望・お体の状態など（任意）</label>
-        <textarea id="input-note" placeholder="腰が痛い、初回です、など"></textarea>
+        <label>{% if service == 'consulting' %}ご相談内容など（任意）{% else %}ご要望・お体の状態など（任意）{% endif %}</label>
+        <textarea id="input-note" placeholder="{% if service == 'consulting' %}ご相談されたい内容など{% else %}腰が痛い、初回です、など{% endif %}"></textarea>
       </div>
     </div>
     <button class="btn btn-primary" onclick="goConfirm()">確認画面へ →</button>
@@ -125,11 +128,24 @@
         <div class="confirm-row" id="confirm-note-row">
           <dt>ご要望</dt><dd id="confirm-note"></dd>
         </div>
+        {% if service == 'consulting' %}
+        <div class="confirm-row">
+          <dt>料金</dt><dd>¥{{ "{:,}".format(price) }}（クレジットカード事前決済）</dd>
+        </div>
+        {% endif %}
       </dl>
+      {% if service == 'consulting' %}
+      <p style="font-size:13px;color:var(--muted);margin-bottom:16px">
+        「お支払いへ進む」を押すと、クレジットカード決済ページ（Stripe）に移動します。<br>
+        お支払い完了をもってご予約が確定します。
+      </p>
+      <button class="btn btn-primary" id="submit-btn" onclick="submitReservation()">お支払いへ進む →</button>
+      {% else %}
       <p style="font-size:13px;color:var(--muted);margin-bottom:16px">
         上記の内容でよろしければ「予約を確定する」を押してください。
       </p>
       <button class="btn btn-primary" id="submit-btn" onclick="submitReservation()">予約を確定する</button>
+      {% endif %}
     </div>
     <div style="height:10px"></div>
     <button class="btn btn-outline" onclick="goStep(3)">← 情報を修正する</button>

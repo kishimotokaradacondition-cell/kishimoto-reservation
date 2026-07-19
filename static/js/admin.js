@@ -27,6 +27,19 @@ const SERVICE_CONFIG = {
     duration: 30,
     dows: [1, 3, 4, 5, 6],   // 月・水・木・金・土
   },
+  consulting: {
+    label: "コンサル",
+    times: ["10:00", "11:00", "12:00", "13:00", "14:00",
+            "15:00", "16:00", "17:00", "18:00", "19:00"],
+    duration: 60,
+    dows: [1, 3, 4, 5, 6],   // 月・水・木・金・土
+  },
+};
+
+const SERVICE_TAG = {
+  seitai:     '<span class="tag" style="background:#f0f4ef;color:var(--primary)">整体</span>',
+  hoken:      '<span class="tag" style="background:#e3f2fd;color:#1565c0">保険</span>',
+  consulting: '<span class="tag" style="background:#fff3e0;color:#e65100">コンサル</span>',
 };
 
 function currentService() {
@@ -182,9 +195,7 @@ function showDaySlots(iso) {
             ? '<span class="tag tag-confirmed">空き</span>'
             : '<span class="tag" style="background:#eee;color:#999">非公開</span>');
 
-      const svcTag = s.service === "hoken"
-        ? '<span class="tag" style="background:#e3f2fd;color:#1565c0">保険</span>'
-        : '<span class="tag" style="background:#f0f4ef;color:var(--primary)">整体</span>';
+      const svcTag = SERVICE_TAG[s.service] || SERVICE_TAG.seitai;
 
       li.innerHTML = `
         <div>
@@ -249,6 +260,7 @@ async function viewBooking(slotId) {
       <div class="confirm-row"><dt>日時</dt><dd>${fmtDate(r.date)} ${fmtTime(r.time)}</dd></div>
       <div class="confirm-row"><dt>お名前</dt><dd>${r.customer_name}</dd></div>
       <div class="confirm-row"><dt>電話番号</dt><dd>${r.customer_phone}</dd></div>
+      ${r.payment_status === "paid" ? `<div class="confirm-row"><dt>支払い</dt><dd>クレジット決済済み${r.amount ? `（¥${r.amount.toLocaleString()}）` : ""}</dd></div>` : ""}
       ${r.customer_note ? `<div class="confirm-row"><dt>ご要望</dt><dd>${r.customer_note}</dd></div>` : ""}
       <div class="confirm-row"><dt>予約日時</dt><dd>${r.created_at.slice(0,16)}</dd></div>
     </dl>
@@ -291,16 +303,19 @@ async function loadReservations() {
     <div style="overflow-x:auto">
     <table class="res-table">
       <thead><tr>
-        <th>日付</th><th>時間</th><th>種別</th><th>お名前</th><th>電話番号</th><th>ご要望</th><th></th>
+        <th>日付</th><th>時間</th><th>種別</th><th>お名前</th><th>電話番号</th><th>支払い</th><th>ご要望</th><th></th>
       </tr></thead>
       <tbody>
         ${list.map(r => `
           <tr>
             <td>${fmtDate(r.date)}</td>
             <td>${fmtTime(r.time)}</td>
-            <td>${r.service === "hoken" ? "保険" : "整体"}</td>
+            <td>${(SERVICE_CONFIG[r.service] || SERVICE_CONFIG.seitai).label}</td>
             <td style="font-weight:600">${r.customer_name}</td>
             <td>${r.customer_phone}</td>
+            <td style="white-space:nowrap">${r.payment_status === "paid"
+              ? `<span class="tag tag-confirmed">決済済${r.amount ? ` ¥${r.amount.toLocaleString()}` : ""}</span>`
+              : "—"}</td>
             <td style="font-size:12px;color:var(--muted)">${r.customer_note || "—"}</td>
             <td><button class="btn btn-sm" style="background:#fee;color:#d44;border:none;white-space:nowrap"
                 onclick="cancelReservation(${r.id})">ｷｬﾝｾﾙ</button></td>

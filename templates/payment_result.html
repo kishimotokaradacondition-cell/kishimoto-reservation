@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% if ok %}ご予約確定{% else %}お支払い未完了{% endif %} | きしもとマネジメントオフィス</title>
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div>
+    <div class="logo">コンサルティングのご予約</div>
+    <div class="subtitle">きしもとマネジメントオフィス</div>
+  </div>
+</header>
+
+<div class="container">
+  {% if ok %}
+  <div class="card" style="text-align:center;padding:30px 20px">
+    <div class="success-icon">✅</div>
+    <div class="success-title">お支払いが完了し、ご予約が確定しました！</div>
+    <div class="success-sub">確認メールをお送りしています</div>
+    <dl class="confirm-box" style="text-align:left">
+      <div class="confirm-row"><dt>日時</dt><dd>{{ dt_label }}</dd></div>
+      <div class="confirm-row"><dt>お名前</dt><dd>{{ customer_name }} 様</dd></div>
+      {% if amount %}
+      <div class="confirm-row"><dt>お支払い</dt><dd>クレジットカード決済済み（¥{{ "{:,}".format(amount) }}）</dd></div>
+      {% endif %}
+    </dl>
+    <p style="font-size:13px;color:var(--muted);margin-top:12px;margin-bottom:20px">
+      ご予約番号: <strong>No.{{ res_id }}</strong>
+    </p>
+    <a class="btn btn-outline" href="/consulting" style="text-decoration:none;display:inline-block">予約ページに戻る</a>
+  </div>
+  {% else %}
+  <div class="card" style="text-align:center;padding:30px 20px">
+    <div class="success-icon">{% if cancelled %}↩️{% else %}⚠️{% endif %}</div>
+    <div class="success-title">{% if cancelled %}お支払いはキャンセルされました{% else %}お支払いを確認できませんでした{% endif %}</div>
+    <p style="font-size:14px;color:var(--muted);margin:16px 0 24px">{{ message }}</p>
+    <a class="btn btn-primary" href="/consulting" style="text-decoration:none;display:inline-block">予約ページに戻る</a>
+  </div>
+  {% endif %}
+</div>
+
+</body>
+</html>

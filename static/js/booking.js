@@ -193,6 +193,8 @@ function goConfirm() {
 }
 
 /* ── 予約送信 ─────────────────────────────────────── */
+const SUBMIT_LABEL = document.getElementById("submit-btn").textContent;
+
 async function submitReservation() {
   const btn = document.getElementById("submit-btn");
   btn.disabled = true;
@@ -215,7 +217,14 @@ async function submitReservation() {
     if (!res.ok) {
       toast("❌ " + (data.error || "エラーが発生しました"));
       btn.disabled = false;
-      btn.textContent = "予約を確定する";
+      btn.textContent = SUBMIT_LABEL;
+      return;
+    }
+
+    // 事前決済が必要な場合はStripeの決済ページへ移動
+    if (data.payment_required && data.checkout_url) {
+      btn.textContent = "決済ページへ移動中...";
+      window.location.href = data.checkout_url;
       return;
     }
 
@@ -230,7 +239,7 @@ async function submitReservation() {
   } catch {
     toast("通信エラーが発生しました");
     btn.disabled = false;
-    btn.textContent = "予約を確定する";
+    btn.textContent = SUBMIT_LABEL;
   }
 }
 
