@@ -39,6 +39,23 @@ a { color: var(--primary); text-decoration: none; }
 }
 .site-header .logo { font-size: 18px; font-weight: 700; letter-spacing: .5px; }
 .site-header .subtitle { font-size: 12px; opacity: .85; }
+.site-header .header-nav {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.site-header .header-nav a {
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border: 1px solid rgba(255,255,255,.5);
+  border-radius: 8px;
+  transition: background .15s;
+  white-space: nowrap;
+}
+.site-header .header-nav a:hover { background: rgba(255,255,255,.15); }
 
 /* ── コンテナ ─────────────────────────────────────── */
 .container { max-width: 520px; margin: 0 auto; padding: 20px 16px 60px; }
