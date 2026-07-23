@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ post.title }} | きしもとカラダcondiTion</title>
+<meta name="description" content="{{ post.excerpt }}">
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div>
+    <div class="logo">きしもとカラダ整体</div>
+    <div class="subtitle">きしもとカラダcondiTion｜神戸市垂水区舞子</div>
+  </div>
+</header>
+
+<div class="container blog-container">
+
+  <nav class="blog-breadcrumb">
+    <a href="/blog">ブログ一覧</a> ＞ <span>{{ post.title }}</span>
+  </nav>
+
+  <article class="card blog-article">
+    <div class="blog-card-meta">
+      <span class="blog-cat">{{ post.category }}</span>
+      <span class="blog-date">{{ fmt_date(post.date) }}</span>
+    </div>
+    <h1 class="blog-article-title">{{ post.title }}</h1>
+    <div class="blog-body">
+      {{ post.body|safe }}
+    </div>
+  </article>
+
+  <a class="btn btn-outline" href="/blog">← ブログ一覧へ戻る</a>
+
+</div>
+
+</body>
+</html>

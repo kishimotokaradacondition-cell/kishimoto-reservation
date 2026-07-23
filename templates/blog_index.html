@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ブログ | きしもとカラダcondiTion</title>
+<meta name="description" content="神戸市垂水区舞子の整体院「きしもとカラダcondiTion」のブログ。季節のからだケアや不調とのつきあい方をお届けします。">
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div>
+    <div class="logo">ブログ</div>
+    <div class="subtitle">きしもとカラダcondiTion｜神戸市垂水区舞子</div>
+  </div>
+</header>
+
+<div class="container blog-container">
+
+  {% if not_found %}
+  <div class="card" style="text-align:center">
+    <p style="font-size:15px;font-weight:700;color:var(--primary-dk);margin-bottom:6px">
+      記事が見つかりませんでした
+    </p>
+    <p style="font-size:13px;color:var(--muted)">
+      URLをご確認いただくか、下の一覧からお選びください。
+    </p>
+  </div>
+  {% endif %}
+
+  <div class="blog-list">
+    {% for post in posts %}
+    <a class="blog-card" href="/blog/{{ post.slug }}">
+      <div class="blog-card-meta">
+        <span class="blog-cat">{{ post.category }}</span>
+        <span class="blog-date">{{ fmt_date(post.date) }}</span>
+      </div>
+      <h2 class="blog-card-title">{{ post.title }}</h2>
+      <p class="blog-card-excerpt">{{ post.excerpt }}</p>
+      <span class="blog-card-more">続きを読む →</span>
+    </a>
+    {% endfor %}
+  </div>
+
+  <a class="btn btn-outline" href="/" style="margin-top:8px">← ご予約ページへ戻る</a>
+
+</div>
+
+</body>
+</html>
