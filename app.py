@@ -10,6 +10,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime, date, timedelta
 from functools import wraps
+from blog_posts import get_all_posts, get_post
 
 try:
     import config as _cfg
@@ -57,6 +58,15 @@ except ImportError:
 HOLIDAY_CUTOFF = "18:00:00"
 
 DOW_JA = ["月","火","水","木","金","土","日"]
+
+
+def fmt_blog_date(date_str):
+    """YYYY-MM-DD を「2026年7月23日（木）」形式に整形"""
+    try:
+        d = date.fromisoformat(date_str)
+        return f"{d.year}年{d.month}月{d.day}日（{DOW_JA[d.weekday()]}）"
+    except Exception:
+        return date_str
 
 # サービス種別ラベル
 SERVICE_LABELS = {"seitai": "きしもとカラダ整体", "hoken": "保険診療"}
@@ -309,6 +319,21 @@ def booking_page():
 @app.route("/hoken")
 def hoken_booking_page():
     return render_template("booking.html", service="hoken")
+
+
+@app.route("/blog")
+def blog_index_page():
+    posts = get_all_posts()
+    return render_template("blog_index.html", posts=posts, fmt_date=fmt_blog_date)
+
+
+@app.route("/blog/<slug>")
+def blog_post_page(slug):
+    post = get_post(slug)
+    if not post:
+        return render_template("blog_index.html", posts=get_all_posts(),
+                               fmt_date=fmt_blog_date, not_found=True), 404
+    return render_template("blog_post.html", post=post, fmt_date=fmt_blog_date)
 
 
 @app.route("/admin")
