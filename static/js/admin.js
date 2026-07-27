@@ -84,7 +84,63 @@ function switchTab(tab) {
   });
   document.getElementById("tab-slots").classList.toggle("hidden", tab !== "slots");
   document.getElementById("tab-reservations").classList.toggle("hidden", tab !== "reservations");
+  document.getElementById("tab-links").classList.toggle("hidden", tab !== "links");
   if (tab === "reservations") loadReservations();
+  if (tab === "links") loadLinkStats();
+}
+
+/* ── リンク計測（Instagram誘導） ───────────────────── */
+const LINK_LABELS = {
+  home:   "🏠 公式ホームページ",
+  seitai: "📅 整体のご予約",
+  hoken:  "🩺 保険診療のご予約",
+  tel:    "📞 電話で問い合わせ",
+  map:    "📍 アクセス・地図",
+};
+
+async function loadLinkStats() {
+  const el = document.getElementById("links-content");
+  try {
+    const res = await fetch("/api/admin/link-stats", { credentials: "include" });
+    const data = await res.json();
+
+    const keys = Object.keys(LINK_LABELS);
+    const rows = keys.map(k => `
+      <tr>
+        <td style="padding:10px 8px;border-bottom:1px solid var(--border)">${LINK_LABELS[k]}</td>
+        <td style="padding:10px 8px;border-bottom:1px solid var(--border);text-align:right;font-weight:700">${data.recent[k] || 0}</td>
+        <td style="padding:10px 8px;border-bottom:1px solid var(--border);text-align:right;color:var(--muted)">${data.total[k] || 0}</td>
+      </tr>`).join("");
+
+    const dailyRows = (data.daily || []).map(d => `
+      <tr>
+        <td style="padding:8px;border-bottom:1px solid var(--border)">${d.day}</td>
+        <td style="padding:8px;border-bottom:1px solid var(--border);text-align:right;font-weight:700">${d.cnt}</td>
+      </tr>`).join("");
+
+    el.innerHTML = `
+      <div class="card">
+        <div class="card-title">ボタン別クリック数</div>
+        <table style="width:100%;border-collapse:collapse;font-size:14px">
+          <thead>
+            <tr style="color:var(--muted);font-size:12px">
+              <th style="text-align:left;padding:6px 8px">リンク</th>
+              <th style="text-align:right;padding:6px 8px">直近${data.days}日</th>
+              <th style="text-align:right;padding:6px 8px">累計</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <div class="card">
+        <div class="card-title">日別クリック数（直近${data.days}日）</div>
+        ${dailyRows
+          ? `<table style="width:100%;border-collapse:collapse;font-size:14px"><tbody>${dailyRows}</tbody></table>`
+          : '<p style="text-align:center;color:var(--muted);padding:20px">まだクリックがありません</p>'}
+      </div>`;
+  } catch (e) {
+    el.innerHTML = '<div style="text-align:center;color:var(--danger);padding:40px">読み込みに失敗しました</div>';
+  }
 }
 
 /* ── 月ナビ ───────────────────────────────────────── */
