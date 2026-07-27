@@ -6,6 +6,7 @@ import smtplib
 import threading
 import json
 import urllib.request
+import urllib.parse
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime, date, timedelta
@@ -60,6 +61,20 @@ DOW_JA = ["月","火","水","木","金","土","日"]
 
 # サービス種別ラベル
 SERVICE_LABELS = {"seitai": "きしもとカラダ整体", "hoken": "保険診療"}
+
+# ── Instagram誘導リンク（/ig ページ → /go/<key> 経由で計測して転送）──
+HOMEPAGE_URL = "https://www.kishimotocondition.com/"
+SHOP_PHONE   = "078-785-5251"
+
+IG_LINKS = {
+    # ホームページにはUTMパラメータを付けて、Wix/GAの解析でInstagram経由と分かるようにする
+    "home":   HOMEPAGE_URL + "?utm_source=instagram&utm_medium=social&utm_campaign=link_in_bio",
+    "seitai": "/",
+    "hoken":  "/hoken",
+    "tel":    "tel:" + SHOP_PHONE,
+    "map":    "https://www.google.com/maps/search/?api=1&query=" +
+              urllib.parse.quote("きしもとカラダcondiTion 神戸市垂水区舞子"),
+}
 
 def service_label(service):
     return SERVICE_LABELS.get(service or "seitai", "きしもとカラダ整体")
@@ -236,6 +251,12 @@ def init_db():
                 service      TEXT DEFAULT 'seitai',
                 UNIQUE(date, time, service)
             );
+            CREATE TABLE IF NOT EXISTS link_clicks (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                link_key   TEXT NOT NULL,
+                source     TEXT DEFAULT 'ig',
+                created_at TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS reservations (
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
                 slot_id         INTEGER NOT NULL,
@@ -309,6 +330,33 @@ def booking_page():
 @app.route("/hoken")
 def hoken_booking_page():
     return render_template("booking.html", service="hoken")
+
+
+@app.route("/ig")
+@app.route("/links")
+def instagram_links_page():
+    """Instagramプロフィールに貼るリンクまとめページ"""
+    return render_template("links.html", phone=SHOP_PHONE)
+
+
+@app.route("/go/<key>")
+def go_redirect(key):
+    """クリックを記録してから各リンク先へ転送する"""
+    url = IG_LINKS.get(key)
+    if not url:
+        return redirect(url_for("instagram_links_page"))
+    src = (request.args.get("src") or "ig")[:30]
+    try:
+        # 日本時間で記録（集計を日本の1日単位で見られるように）
+        jst_now = (datetime.utcnow() + timedelta(hours=9)).strftime("%Y-%m-%d %H:%M:%S")
+        with get_db() as conn:
+            conn.execute(
+                "INSERT INTO link_clicks (link_key, source, created_at) VALUES (?,?,?)",
+                (key, src, jst_now),
+            )
+    except Exception as e:
+        print(f"[link] クリック記録失敗: {e}")
+    return redirect(url)
 
 
 @app.route("/admin")
@@ -462,6 +510,34 @@ def admin_calendar():
             ORDER BY s.date, s.time
         """, (month + "%",)).fetchall()
     return jsonify([dict(r) for r in rows])
+
+
+@app.route("/api/admin/link-stats")
+@login_required
+def link_stats():
+    """リンククリック集計（全期間・直近30日・日別）を返す"""
+    days = 30
+    since = (date.today() - timedelta(days=days - 1)).isoformat()
+    with get_db() as conn:
+        total = conn.execute(
+            "SELECT link_key, COUNT(*) AS cnt FROM link_clicks GROUP BY link_key"
+        ).fetchall()
+        recent = conn.execute(
+            "SELECT link_key, COUNT(*) AS cnt FROM link_clicks WHERE created_at >= ? GROUP BY link_key",
+            (since,),
+        ).fetchall()
+        daily = conn.execute(
+            """SELECT substr(created_at, 1, 10) AS day, COUNT(*) AS cnt
+               FROM link_clicks WHERE created_at >= ?
+               GROUP BY day ORDER BY day DESC""",
+            (since,),
+        ).fetchall()
+    return jsonify({
+        "days": days,
+        "total":  {r["link_key"]: r["cnt"] for r in total},
+        "recent": {r["link_key"]: r["cnt"] for r in recent},
+        "daily":  [dict(r) for r in daily],
+    })
 
 
 # ── 顧客向け API ──────────────────────────────────────────
