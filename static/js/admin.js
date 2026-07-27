@@ -91,7 +91,7 @@ function switchTab(tab) {
 
 /* ── リンク計測（Instagram誘導） ───────────────────── */
 const LINK_LABELS = {
-  home:   "🏠 公式ホームページ",
+  home:   "🏠 きしもとカラダcondiTionをチェック",
   seitai: "📅 整体のご予約",
   hoken:  "🩺 保険診療のご予約",
   tel:    "📞 電話で問い合わせ",
