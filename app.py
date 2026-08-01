@@ -39,6 +39,11 @@ except Exception:
 SENDGRID_API_KEY = getattr(_cfg, "SENDGRID_API_KEY", "") if _cfg else ""
 SENDGRID_API_KEY = SENDGRID_API_KEY or os.environ.get("SENDGRID_API_KEY", "")
 
+# Googleカレンダー連携（Google Apps Script Webhook）
+# 設定手順は docs/google-calendar-setup.md を参照
+GCAL_WEBHOOK_URL   = (getattr(_cfg, "GCAL_WEBHOOK_URL", "")   if _cfg else "") or os.environ.get("GCAL_WEBHOOK_URL", "")
+GCAL_WEBHOOK_TOKEN = (getattr(_cfg, "GCAL_WEBHOOK_TOKEN", "") if _cfg else "") or os.environ.get("GCAL_WEBHOOK_TOKEN", "")
+
 # 送信元アドレス（ドメイン認証済みアドレス推奨。未設定時はGmailアドレス）
 MAIL_FROM = (getattr(_cfg, "MAIL_FROM", "") if _cfg else "") or os.environ.get("MAIL_FROM", "") or GMAIL_ADDRESS
 
@@ -98,16 +103,106 @@ def _make_body(res_id, customer_name, customer_phone, customer_note,
 """
 
 
-def _send_one(to_addr, subject, body):
-    """1通送信（SendGrid API優先・未設定時はGmail SMTP）"""
-    if SENDGRID_API_KEY:
+def _notify_gcal(action, res_id, customer_name="", customer_phone="", customer_note="",
+                 slot_date="", slot_time="", slot_duration=45, service="seitai"):
+    """Google Apps Script Webhook経由でGoogleカレンダーに予定を作成/削除する。
+
+    GCAL_WEBHOOK_URL が未設定なら何もしない（連携オフ）。
+    失敗しても予約処理には影響させない（別スレッドから呼ばれる前提）。
+    """
+    if not GCAL_WEBHOOK_URL:
+        return
+    try:
         payload = json.dumps({
+            "token": GCAL_WEBHOOK_TOKEN,
+            "action": action,                      # "create" or "cancel"
+            "reservation_id": res_id,
+            "customer_name": customer_name,
+            "customer_phone": customer_phone,
+            "customer_note": customer_note,
+            "date": slot_date,                     # YYYY-MM-DD
+            "time": (slot_time or "")[:5],         # HH:MM
+            "duration": slot_duration,             # 分
+            "service_label": service_label(service),
+        }, ensure_ascii=False).encode("utf-8")
+        req = urllib.request.Request(
+            GCAL_WEBHOOK_URL,
+            data=payload,
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            print(f"[gcal] {action} No.{res_id} → HTTP {resp.status}")
+    except Exception as e:
+        print(f"[gcal] 連携失敗 ({action} No.{res_id}): {e}")
+
+
+def _ics_escape(text):
+    """iCalendarのテキスト値エスケープ"""
+    return (text or "").replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,").replace("\n", "\\n")
+
+
+def _build_ics(res_id, customer_name, customer_phone, customer_note,
+               slot_date, slot_time, slot_duration, service="seitai"):
+    """予約1件分のGoogleカレンダー招待（iCalendar/ICS）を生成する。
+
+    オーナー通知メールに添付すると、Gmail上で「カレンダーに追加」でき、
+    カレンダー設定によっては自動でカレンダーに載る。
+    """
+    label = service_label(service)
+    start_jst = datetime.fromisoformat(f"{slot_date}T{(slot_time or '')[:5]}:00")
+    start_utc = start_jst - timedelta(hours=9)
+    end_utc = start_utc + timedelta(minutes=int(slot_duration or 45))
+    now_utc = datetime.utcnow()
+    fmt = "%Y%m%dT%H%M%SZ"
+    summary = f"予約No.{res_id} {customer_name}様（{label}{slot_duration}分）"
+    description = (
+        f"お名前: {customer_name} 様\n"
+        f"電話番号: {customer_phone}\n"
+        f"区分: {label}（{slot_duration}分）\n"
+        f"ご要望: {customer_note or '（なし）'}\n"
+        f"Web予約システムから自動作成"
+    )
+    lines = [
+        "BEGIN:VCALENDAR",
+        "PRODID:-//kishimotocondition//reservation//JA",
+        "VERSION:2.0",
+        "CALSCALE:GREGORIAN",
+        "METHOD:REQUEST",
+        "BEGIN:VEVENT",
+        f"UID:reservation-{res_id}@kishimotocondition.com",
+        f"DTSTAMP:{now_utc.strftime(fmt)}",
+        f"DTSTART:{start_utc.strftime(fmt)}",
+        f"DTEND:{end_utc.strftime(fmt)}",
+        f"SUMMARY:{_ics_escape(summary)}",
+        f"DESCRIPTION:{_ics_escape(description)}",
+        f"ORGANIZER;CN=きしもとカラダcondiTion:mailto:{MAIL_FROM}",
+        f"ATTENDEE;CN=院長;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:{NOTIFY_EMAIL or GMAIL_ADDRESS}",
+        "STATUS:CONFIRMED",
+        "END:VEVENT",
+        "END:VCALENDAR",
+    ]
+    return "\r\n".join(lines) + "\r\n"
+
+
+def _send_one(to_addr, subject, body, ics=None):
+    """1通送信（SendGrid API優先・未設定時はGmail SMTP）。ics指定時はカレンダー招待を添付"""
+    if SENDGRID_API_KEY:
+        sg_payload = {
             "personalizations": [{"to": [{"email": to_addr}]}],
             "from": {"email": MAIL_FROM, "name": "きしもとカラダ整体"},
             "reply_to": {"email": NOTIFY_EMAIL or GMAIL_ADDRESS},
             "subject": subject,
             "content": [{"type": "text/plain", "value": body}],
-        }).encode("utf-8")
+        }
+        if ics:
+            import base64
+            sg_payload["attachments"] = [{
+                "content": base64.b64encode(ics.encode("utf-8")).decode("ascii"),
+                "type": "text/calendar; method=REQUEST",
+                "filename": "invite.ics",
+                "disposition": "attachment",
+            }]
+        payload = json.dumps(sg_payload).encode("utf-8")
         req = urllib.request.Request(
             "https://api.sendgrid.com/v3/mail/send",
             data=payload,
@@ -123,6 +218,11 @@ def _send_one(to_addr, subject, body):
     msg["From"]    = GMAIL_ADDRESS
     msg["To"]      = to_addr
     msg.attach(MIMEText(body, "plain", "utf-8"))
+    if ics:
+        part = MIMEText(ics, "calendar", "utf-8")
+        part.set_param("method", "REQUEST")
+        part.add_header("Content-Disposition", "attachment", filename="invite.ics")
+        msg.attach(part)
     with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=10) as srv:
         srv.login(GMAIL_ADDRESS, GMAIL_APP_PASSWORD)
         srv.send_message(msg)
@@ -156,11 +256,23 @@ def _send_email(res_id, customer_name, customer_phone, customer_email,
                 print(f"[mail] お客様メール失敗: {e}")
 
         # ── Email 2: オーナーへ新規予約通知 ────────────────
+        # Webhook連携が無い場合はカレンダー招待(ICS)を添付し、
+        # Gmailから1タップでGoogleカレンダーに追加できるようにする
+        # （Webhook連携がある場合は二重登録を避けるため添付しない）
         try:
+            ics = None
+            if not GCAL_WEBHOOK_URL:
+                try:
+                    ics = _build_ics(res_id, customer_name, customer_phone,
+                                     customer_note, slot_date, slot_time,
+                                     slot_duration, service)
+                except Exception as e:
+                    print(f"[mail] ICS生成失敗: {e}")
             _send_one(
                 NOTIFY_EMAIL,
                 f"【新規予約】{customer_name}様 {date_str} {time_str}〜",
-                f"新しい予約が入りました。\n\n" + body
+                f"新しい予約が入りました。\n\n" + body,
+                ics=ics,
             )
             print(f"[mail] オーナーへ送信完了 → {NOTIFY_EMAIL}  No.{res_id}")
         except Exception as e:
@@ -492,6 +604,10 @@ def update_reservation(res_id):
     if data.get("status") == "cancelled":
         with get_db() as conn:
             conn.execute("UPDATE reservations SET status='cancelled' WHERE id=?", (res_id,))
+        # Googleカレンダーの該当予定を削除（GCAL_WEBHOOK_URL設定済み時のみ動作）
+        threading.Thread(
+            target=_notify_gcal, args=("cancel", res_id), daemon=True,
+        ).start()
         return jsonify({"ok": True})
     return jsonify({"error": "Unknown action"}), 400
 
@@ -625,6 +741,14 @@ def create_reservation():
     threading.Thread(
         target=_send_email,
         args=(res_id, name, phone, email, note,
+              slot["date"], slot["time"], slot["duration"], slot_service),
+        daemon=True,
+    ).start()
+
+    # Googleカレンダーに予定を自動作成（GCAL_WEBHOOK_URL設定済み時のみ動作）
+    threading.Thread(
+        target=_notify_gcal,
+        args=("create", res_id, name, phone, note,
               slot["date"], slot["time"], slot["duration"], slot_service),
         daemon=True,
     ).start()
