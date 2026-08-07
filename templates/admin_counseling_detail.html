@@ -26,8 +26,22 @@
         <button class="btn btn-danger btn-sm" onclick="deleteSession()">削除</button>
       </div>
     </div>
+    <div class="form-group">
+      <label>Google Meetリンク（オンライン整体のビデオ通話）</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <input type="url" id="meet-url" placeholder="https://meet.google.com/xxx-xxxx-xxx"
+               style="flex:1;min-width:220px;font-size:13px">
+        <button class="btn btn-outline btn-sm" onclick="saveMeetUrl()">保存</button>
+        <a class="btn btn-primary btn-sm" id="meet-open-btn" href="#" target="_blank" rel="noopener"
+           style="text-decoration:none;display:none">🎥 Meetに参加</a>
+      </div>
+      <p style="font-size:11px;color:var(--muted);margin-top:4px">
+        <a href="https://meet.google.com/new" target="_blank" rel="noopener">▶ 新しいMeetを作成する</a>
+        （開いたMeetのURLをコピーして貼り付け→保存。お客様用ページに参加ボタンが表示されます）
+      </p>
+    </div>
     <div class="form-group" style="margin-bottom:0">
-      <label>お客様用 写真アップロードリンク（通話中にLINE・メール等で送ってください）</label>
+      <label>お客様用リンク＝オンライン整体ルーム（Meet参加＋写真送信。LINE・メール等で送ってください）</label>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         <input type="text" id="upload-url" readonly style="flex:1;min-width:220px;font-size:13px">
         <button class="btn btn-outline btn-sm" onclick="copyUploadUrl()">📋 リンクをコピー</button>

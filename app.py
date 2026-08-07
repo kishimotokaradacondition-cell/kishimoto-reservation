@@ -388,6 +388,7 @@ def init_db():
                 client_name    TEXT NOT NULL,
                 client_contact TEXT,
                 upload_token   TEXT UNIQUE,
+                meet_url       TEXT,
                 data           TEXT,
                 status         TEXT DEFAULT 'open'
             );
@@ -410,6 +411,11 @@ def init_db():
         # 既存DBに service 列がない場合は追加（整体=seitai / 保険=hoken）
         try:
             conn.execute("ALTER TABLE slots ADD COLUMN service TEXT DEFAULT 'seitai'")
+        except Exception:
+            pass
+        # 既存DBに meet_url 列がない場合は追加（Google Meet連携）
+        try:
+            conn.execute("ALTER TABLE counseling_sessions ADD COLUMN meet_url TEXT")
         except Exception:
             pass
         # UNIQUE(date,time) → UNIQUE(date,time,service) へ移行
@@ -494,15 +500,19 @@ def go_redirect(key):
 
 @app.route("/p/<token>")
 def photo_upload_page(token):
-    """カウンセリング中にお客様へ送る写真アップロードページ"""
+    """カウンセリング中にお客様へ送る「オンライン整体ルーム」ページ
+    （Google Meet参加ボタン＋姿勢写真アップロード）"""
     with get_db() as conn:
         row = conn.execute(
-            "SELECT id, client_name, status FROM counseling_sessions WHERE upload_token=?",
+            "SELECT id, client_name, status, meet_url FROM counseling_sessions WHERE upload_token=?",
             (token,),
         ).fetchone()
     if not row or row["status"] != "open":
-        return render_template("upload.html", valid=False, token=token, client_name="")
-    return render_template("upload.html", valid=True, token=token, client_name=row["client_name"])
+        return render_template("upload.html", valid=False, token=token,
+                               client_name="", meet_url="")
+    return render_template("upload.html", valid=True, token=token,
+                           client_name=row["client_name"],
+                           meet_url=row["meet_url"] or "")
 
 
 @app.route("/admin")
@@ -724,6 +734,18 @@ def _validate_photo(photo):
     return None
 
 
+def _clean_meet_url(url):
+    """Google MeetのURLを検証して正規化。空なら""、不正ならNoneを返す"""
+    url = (url or "").strip()
+    if not url:
+        return ""
+    if not url.startswith("https://"):
+        url = "https://" + url
+    if not url.startswith("https://meet.google.com/"):
+        return None
+    return url[:200]
+
+
 @app.route("/api/admin/counseling", methods=["POST"])
 @login_required
 def create_counseling_session():
@@ -732,14 +754,17 @@ def create_counseling_session():
     if not name:
         return jsonify({"error": "お客様のお名前を入力してください"}), 400
     contact = (data.get("client_contact") or "").strip()[:100]
+    meet_url = _clean_meet_url(data.get("meet_url"))
+    if meet_url is None:
+        return jsonify({"error": "Meetリンクは https://meet.google.com/ のURLを入力してください"}), 400
     token = secrets.token_urlsafe(9)
     now = _jst_now_str()
     with get_db() as conn:
         cur = conn.execute(
             """INSERT INTO counseling_sessions
-               (created_at, updated_at, client_name, client_contact, upload_token, data)
-               VALUES (?,?,?,?,?,?)""",
-            (now, now, name[:60], contact, token, "{}"),
+               (created_at, updated_at, client_name, client_contact, upload_token, meet_url, data)
+               VALUES (?,?,?,?,?,?,?)""",
+            (now, now, name[:60], contact, token, meet_url, "{}"),
         )
         sid = cur.lastrowid
     return jsonify({"ok": True, "session_id": sid})
@@ -751,7 +776,7 @@ def list_counseling_sessions():
     with get_db() as conn:
         rows = conn.execute("""
             SELECT s.id, s.created_at, s.updated_at, s.client_name, s.client_contact,
-                   s.status,
+                   s.status, s.meet_url,
                    (SELECT COUNT(*) FROM counseling_photos p WHERE p.session_id=s.id) AS photo_count
             FROM counseling_sessions s
             ORDER BY s.id DESC
@@ -830,6 +855,12 @@ def update_counseling_session(session_id):
     if "client_contact" in data:
         fields.append("client_contact=?")
         params.append((data.get("client_contact") or "").strip()[:100])
+    if "meet_url" in data:
+        meet_url = _clean_meet_url(data.get("meet_url"))
+        if meet_url is None:
+            return jsonify({"error": "Meetリンクは https://meet.google.com/ のURLを入力してください"}), 400
+        fields.append("meet_url=?")
+        params.append(meet_url)
     if not fields:
         return jsonify({"error": "No fields"}), 400
     fields.append("updated_at=?")

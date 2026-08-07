@@ -96,6 +96,8 @@ async function loadSession() {
   document.getElementById("client-title").textContent =
     `${sessionData.client_name} 様` + (sessionData.client_contact ? `（${sessionData.client_contact}）` : "");
   document.getElementById("upload-url").value = location.origin + "/p/" + sessionData.upload_token;
+  document.getElementById("meet-url").value = sessionData.meet_url || "";
+  updateMeetBtn();
   updateStatusBtn();
 
   const d = sessionData.data || {};
@@ -137,6 +139,30 @@ async function deleteSession() {
   if (!confirm(`${sessionData.client_name}様のカウンセリングシートを削除しますか？\n写真もすべて削除されます。`)) return;
   await api("/api/admin/counseling/" + SESSION_ID, { method: "DELETE" });
   location.href = "/admin/counseling";
+}
+
+function updateMeetBtn() {
+  const btn = document.getElementById("meet-open-btn");
+  const url = sessionData.meet_url || "";
+  btn.style.display = url ? "" : "none";
+  if (url) btn.href = url;
+}
+
+async function saveMeetUrl() {
+  const url = document.getElementById("meet-url").value.trim();
+  try {
+    await api("/api/admin/counseling/" + SESSION_ID, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ meet_url: url }),
+    });
+  } catch (e) {
+    showToast(e.message);
+    return;
+  }
+  sessionData.meet_url = url ? (url.startsWith("https://") ? url : "https://" + url) : "";
+  updateMeetBtn();
+  showToast(url ? "Meetリンクを保存しました（お客様用ページに参加ボタンが表示されます）" : "Meetリンクを削除しました");
 }
 
 function copyUploadUrl() {

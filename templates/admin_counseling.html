@@ -24,8 +24,8 @@
       <button class="btn btn-primary btn-sm" onclick="openCreateModal()">＋ 新規カウンセリング開始</button>
     </div>
     <p style="font-size:12px;color:var(--muted);margin-bottom:12px">
-      オンライン整体の予約が入ったら「新規カウンセリング開始」でシートを作成し、
-      通話中にお客様へ写真アップロードリンクを送って姿勢チェックを行います。
+      オンライン整体の予約が入ったら「新規カウンセリング開始」でシートを作成します。
+      Google Meetのリンクを登録すると、お客様に送る1つのリンクで「Meet参加＋姿勢写真の送信」ができます。
     </p>
     <div style="overflow-x:auto">
       <table class="res-table">
@@ -53,6 +53,14 @@
     <div class="form-group">
       <label>連絡先（任意）</label>
       <input type="text" id="create-contact" placeholder="電話番号やメールなど">
+    </div>
+    <div class="form-group">
+      <label>Google Meetリンク（任意・あとからでも登録できます）</label>
+      <input type="url" id="create-meet" placeholder="https://meet.google.com/xxx-xxxx-xxx">
+      <p style="font-size:11px;color:var(--muted);margin-top:4px">
+        <a href="https://meet.google.com/new" target="_blank" rel="noopener">▶ 新しいMeetを作成する</a>
+        （開いたMeetのURLをコピーして貼り付けてください）
+      </p>
     </div>
     <div class="modal-footer">
       <button class="btn btn-primary" onclick="createSession()">作成してシートを開く</button>
@@ -93,7 +101,7 @@ async function loadList() {
   document.getElementById("cs-tbody").innerHTML = rows.map((r) => `
     <tr style="cursor:pointer" onclick="location.href='/admin/counseling/${r.id}'">
       <td style="white-space:nowrap">${esc((r.created_at || "").slice(0, 16))}</td>
-      <td><b>${esc(r.client_name)}</b> 様</td>
+      <td><b>${esc(r.client_name)}</b> 様${r.meet_url ? " 🎥" : ""}</td>
       <td>${esc(r.client_contact || "-")}</td>
       <td>${r.photo_count ? "📷 " + r.photo_count + "枚" : "-"}</td>
       <td><span class="tag ${r.status === "done" ? "tag-cancelled" : "tag-confirmed"}">${r.status === "done" ? "完了" : "対応中"}</span></td>
@@ -117,6 +125,7 @@ async function createSession() {
     body: JSON.stringify({
       client_name: name,
       client_contact: document.getElementById("create-contact").value.trim(),
+      meet_url: document.getElementById("create-meet").value.trim(),
     }),
   });
   if (j.ok) location.href = "/admin/counseling/" + j.session_id;

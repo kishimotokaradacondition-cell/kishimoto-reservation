@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>姿勢写真のアップロード | きしもとカラダcondiTion</title>
+<title>オンライン整体ルーム | きしもとカラダcondiTion</title>
 <meta name="robots" content="noindex">
 <link rel="stylesheet" href="/static/css/style.css">
 </head>
@@ -11,8 +11,8 @@
 
 <header class="site-header">
   <div>
-    <div class="logo">姿勢写真のアップロード</div>
-    <div class="subtitle">きしもとカラダcondiTion｜オンライン整体</div>
+    <div class="logo">オンライン整体ルーム</div>
+    <div class="subtitle">きしもとカラダcondiTion｜神戸市垂水区舞子</div>
   </div>
 </header>
 
@@ -22,8 +22,8 @@
   <div class="card" style="text-align:center">
     <div class="success-icon">⏳</div>
     <p style="font-size:14px">
-      このアップロードページは現在ご利用いただけません。<br>
-      カウンセリング担当者にお声がけください。
+      このページは現在ご利用いただけません。<br>
+      担当者にお声がけください。
     </p>
   </div>
 {% else %}
@@ -31,10 +31,26 @@
   <div class="card">
     <div class="card-title">{{ client_name }} 様</div>
     <p style="font-size:13px;color:var(--muted)">
-      カウンセリングで使用する姿勢のお写真をお送りください。
-      送信すると担当者の画面にすぐ表示されます。
+      オンライン整体のお時間になりましたら、下のボタンからビデオ通話（Google Meet）にご参加ください。
+      姿勢のお写真もこのページからお送りいただけます。
     </p>
   </div>
+
+  {% if meet_url %}
+  <a class="btn btn-primary" href="{{ meet_url }}" target="_blank" rel="noopener"
+     style="text-decoration:none;margin-bottom:16px">🎥 ビデオ通話に参加する（Google Meet）</a>
+  <p style="font-size:11px;color:var(--muted);text-align:center;margin:-8px 0 16px">
+    ※ 初めての方は Google Meet アプリのインストールをお願いされる場合があります<br>
+    ※ 写真を送るときは、このページに戻ってきてください（通話はつながったままです）
+  </p>
+  {% else %}
+  <div class="card" style="background:var(--primary-lt)">
+    <p style="font-size:13px">
+      🎥 ビデオ通話のリンクは、担当者から別途ご案内します。
+      このページが更新されると参加ボタンが表示されます。
+    </p>
+  </div>
+  {% endif %}
 
   <div class="card">
     <div class="card-title">撮影のポイント</div>
