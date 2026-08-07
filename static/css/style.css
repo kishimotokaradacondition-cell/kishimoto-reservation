@@ -395,9 +395,8 @@ a { color: var(--primary); text-decoration: none; }
   .time-btn { font-size: 14px; }
 }
 
-/* ── 姿勢・痛みチェック ───────────────────────────── */
+/* ── カウンセリング（姿勢・痛み評価）───────────────── */
 .chip-group { display: flex; flex-wrap: wrap; gap: 8px; }
-.chip-group.chip-col { flex-direction: column; }
 .chip {
   padding: 9px 14px;
   border: 1.5px solid var(--border);
@@ -416,7 +415,6 @@ a { color: var(--primary); text-decoration: none; }
   color: #fff;
   font-weight: 600;
 }
-.chip-group.chip-col .chip { border-radius: 10px; }
 
 /* ボディマップ */
 .bodymap-toggle { display: flex; gap: 8px; margin-bottom: 10px; }
@@ -437,7 +435,7 @@ a { color: var(--primary); text-decoration: none; }
   font-weight: 700;
 }
 .bodymap-wrap { display: flex; justify-content: center; }
-.bodymap { width: 200px; max-width: 60%; }
+.bodymap { width: 200px; max-width: 100%; }
 .bm-outline * {
   fill: #eef4f1;
   stroke: #b9d2c9;
@@ -476,91 +474,39 @@ a { color: var(--primary); text-decoration: none; }
 /* NRSスライダー */
 .nrs { width: 100%; accent-color: var(--primary); height: 28px; }
 .nrs-val { color: var(--primary-dk); font-size: 17px; }
-.nrs-scale {
+
+/* 写真グリッド */
+.photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+}
+.photo-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px;
+  background: #fff;
+}
+.photo-card img {
+  width: 100%;
+  height: 190px;
+  object-fit: cover;
+  border-radius: 8px;
+  cursor: pointer;
+  display: block;
+}
+.photo-meta {
   display: flex;
   justify-content: space-between;
-  font-size: 10px;
-  color: var(--muted);
-}
-
-/* レッドフラグ */
-.rf-list { display: flex; flex-direction: column; gap: 8px; }
-.rf-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 10px 12px;
-  border: 1.5px solid var(--border);
-  border-radius: 10px;
-  font-size: 13px;
-  cursor: pointer;
-}
-.rf-item input { margin-top: 3px; accent-color: #e05a5a; }
-.rf-item:has(input:checked) { border-color: #e05a5a; background: #fdf1f0; }
-.rf-alert {
-  background: #fdf1f0;
-  border: 2px solid #e05a5a;
-  border-radius: var(--radius);
-  padding: 16px 18px;
-  margin-bottom: 16px;
-  color: #a33;
-}
-
-/* 結果表示 */
-.score-circle { text-align: center; margin: 6px 0 12px; }
-.score-num { font-size: 52px; font-weight: 800; }
-.score-max { font-size: 16px; color: var(--muted); margin-left: 4px; }
-.score-types {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  justify-content: center;
-}
-.type-tag {
-  background: var(--primary-lt);
-  color: var(--primary-dk);
-  border-radius: 14px;
-  padding: 4px 12px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
+  margin-top: 6px;
 }
-.pain-summary { display: flex; flex-direction: column; }
-.pain-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 7px 0;
-  border-bottom: 1px solid var(--border);
-  font-size: 13px;
+.photo-offsets {
+  font-size: 11px;
+  color: var(--primary-dk);
+  background: var(--primary-lt);
+  border-radius: 6px;
+  padding: 3px 6px;
+  margin-top: 4px;
 }
-.pain-row:last-child { border-bottom: none; }
-.pain-row > span { min-width: 92px; color: var(--muted); }
-.bar-track {
-  flex: 1;
-  height: 10px;
-  background: #edf2f0;
-  border-radius: 5px;
-  overflow: hidden;
-}
-.bar-fill { height: 100%; border-radius: 5px; }
-.offset-track {
-  flex: 1;
-  height: 10px;
-  background: #edf2f0;
-  border-radius: 5px;
-  position: relative;
-  overflow: hidden;
-}
-.offset-center {
-  position: absolute;
-  left: 50%;
-  top: 0;
-  width: 1.5px;
-  height: 100%;
-  background: #b9c9c2;
-}
-.offset-fill { position: absolute; top: 0; height: 100%; }
-.advice-item { margin-bottom: 12px; }
-.advice-item:last-child { margin-bottom: 0; }
-.advice-item b { font-size: 14px; color: var(--primary-dk); }
-.advice-item p { font-size: 13px; margin-top: 4px; color: var(--text); }

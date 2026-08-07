@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>カウンセリングシート | きしもとカラダcondiTion</title>
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body data-session-id="{{ session_id }}">
+
+<header class="admin-header">
+  <div class="title" id="cs-title">🧍 カウンセリングシート</div>
+  <div style="display:flex;gap:8px">
+    <a class="btn btn-outline btn-sm" href="/admin/counseling" style="color:#fff;border-color:#fff;text-decoration:none">一覧へ戻る</a>
+  </div>
+</header>
+
+<div class="admin-container">
+
+  <!-- 基本情報・アップロードリンク -->
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:10px">
+      <div class="card-title" style="margin-bottom:0" id="client-title">読み込み中…</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary btn-sm" id="status-btn" onclick="toggleStatus()"></button>
+        <button class="btn btn-danger btn-sm" onclick="deleteSession()">削除</button>
+      </div>
+    </div>
+    <div class="form-group" style="margin-bottom:0">
+      <label>お客様用 写真アップロードリンク（通話中にLINE・メール等で送ってください）</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <input type="text" id="upload-url" readonly style="flex:1;min-width:220px;font-size:13px">
+        <button class="btn btn-outline btn-sm" onclick="copyUploadUrl()">📋 リンクをコピー</button>
+      </div>
+      <p style="font-size:11px;color:var(--muted);margin-top:4px">
+        ※ このシートが「完了」になるとリンクは無効になります
+      </p>
+    </div>
+  </div>
+
+  <!-- 写真 -->
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:10px">
+      <div class="card-title" style="margin-bottom:0">姿勢写真</div>
+      <div>
+        <input type="file" id="staff-photo-input" accept="image/*" class="hidden">
+        <button class="btn btn-outline btn-sm" onclick="document.getElementById('staff-photo-input').click()">＋ 写真を追加（スタッフ側）</button>
+      </div>
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:10px" id="photo-hint">
+      お客様がリンクから送信した写真は、ここに自動で表示されます（数秒ごとに更新）。
+      写真をクリックすると拡大し、「マーカー分析」で耳・肩・股関節・膝・くるぶしの並びを計測できます。
+    </p>
+    <div id="photo-grid" class="photo-grid"></div>
+  </div>
+
+  <!-- 痛み・主訴 -->
+  <div class="card">
+    <div class="card-title">痛み・主訴（聞き取りながら入力）</div>
+    <div style="display:flex;gap:20px;flex-wrap:wrap">
+      <div style="flex:1;min-width:220px">
+        <div class="bodymap-toggle">
+          <button class="bm-btn active" id="bm-front-btn" onclick="switchBody('front')">前から</button>
+          <button class="bm-btn" id="bm-back-btn" onclick="switchBody('back')">後ろから</button>
+        </div>
+        <div class="bodymap-wrap">
+          <svg id="bm-front" viewBox="0 0 200 400" class="bodymap">
+            <g class="bm-outline">
+              <circle cx="100" cy="36" r="21"/>
+              <rect x="91" y="56" width="18" height="14" rx="6"/>
+              <path d="M68 74 Q100 64 132 74 L136 150 Q136 178 128 186 L72 186 Q64 178 64 150 Z"/>
+              <rect x="44" y="80" width="17" height="92" rx="8"/>
+              <rect x="139" y="80" width="17" height="92" rx="8"/>
+              <circle cx="52" cy="184" r="9"/>
+              <circle cx="148" cy="184" r="9"/>
+              <path d="M72 186 L128 186 L126 216 L74 216 Z"/>
+              <rect x="75" y="214" width="21" height="140" rx="9"/>
+              <rect x="104" y="214" width="21" height="140" rx="9"/>
+              <ellipse cx="84" cy="366" rx="13" ry="8"/>
+              <ellipse cx="116" cy="366" rx="13" ry="8"/>
+            </g>
+            <g class="bm-spots">
+              <circle cx="100" cy="36"  r="14" data-area="頭"/>
+              <circle cx="100" cy="66"  r="11" data-area="首"/>
+              <circle cx="76"  cy="84"  r="12" data-area="右肩"/>
+              <circle cx="124" cy="84"  r="12" data-area="左肩"/>
+              <circle cx="100" cy="108" r="13" data-area="胸"/>
+              <circle cx="52"  cy="128" r="10" data-area="右肘"/>
+              <circle cx="148" cy="128" r="10" data-area="左肘"/>
+              <circle cx="52"  cy="180" r="10" data-area="右手首・手"/>
+              <circle cx="148" cy="180" r="10" data-area="左手首・手"/>
+              <circle cx="100" cy="152" r="13" data-area="お腹"/>
+              <circle cx="80"  cy="202" r="11" data-area="右股関節"/>
+              <circle cx="120" cy="202" r="11" data-area="左股関節"/>
+              <circle cx="85"  cy="272" r="12" data-area="右膝"/>
+              <circle cx="115" cy="272" r="12" data-area="左膝"/>
+              <circle cx="85"  cy="356" r="11" data-area="右足首・足"/>
+              <circle cx="115" cy="356" r="11" data-area="左足首・足"/>
+            </g>
+          </svg>
+          <svg id="bm-back" viewBox="0 0 200 400" class="bodymap hidden">
+            <g class="bm-outline">
+              <circle cx="100" cy="36" r="21"/>
+              <rect x="91" y="56" width="18" height="14" rx="6"/>
+              <path d="M68 74 Q100 64 132 74 L136 150 Q136 178 128 186 L72 186 Q64 178 64 150 Z"/>
+              <rect x="44" y="80" width="17" height="92" rx="8"/>
+              <rect x="139" y="80" width="17" height="92" rx="8"/>
+              <circle cx="52" cy="184" r="9"/>
+              <circle cx="148" cy="184" r="9"/>
+              <path d="M72 186 L128 186 L126 216 L74 216 Z"/>
+              <rect x="75" y="214" width="21" height="140" rx="9"/>
+              <rect x="104" y="214" width="21" height="140" rx="9"/>
+              <ellipse cx="84" cy="366" rx="13" ry="8"/>
+              <ellipse cx="116" cy="366" rx="13" ry="8"/>
+            </g>
+            <g class="bm-spots">
+              <circle cx="100" cy="36"  r="14" data-area="後頭部"/>
+              <circle cx="100" cy="66"  r="11" data-area="首（後ろ）"/>
+              <circle cx="124" cy="84"  r="12" data-area="右肩（後ろ）"/>
+              <circle cx="76"  cy="84"  r="12" data-area="左肩（後ろ）"/>
+              <circle cx="100" cy="110" r="14" data-area="背中（上部）"/>
+              <circle cx="100" cy="158" r="14" data-area="腰"/>
+              <circle cx="100" cy="198" r="13" data-area="お尻"/>
+              <circle cx="115" cy="255" r="12" data-area="右もも裏"/>
+              <circle cx="85"  cy="255" r="12" data-area="左もも裏"/>
+              <circle cx="115" cy="325" r="12" data-area="右ふくらはぎ"/>
+              <circle cx="85"  cy="325" r="12" data-area="左ふくらはぎ"/>
+            </g>
+          </svg>
+        </div>
+        <div id="bm-selected" class="bm-selected"></div>
+      </div>
+      <div style="flex:1.2;min-width:260px">
+        <div class="form-group">
+          <label>いまの痛み：<b class="nrs-val" id="nrs-now-val">0</b> / 10</label>
+          <input type="range" class="nrs" id="nrs-now" min="0" max="10" value="0">
+        </div>
+        <div class="form-group">
+          <label>最もつらい時：<b class="nrs-val" id="nrs-worst-val">0</b> / 10</label>
+          <input type="range" class="nrs" id="nrs-worst" min="0" max="10" value="0">
+        </div>
+        <div class="form-group">
+          <label>主訴・問診メモ</label>
+          <textarea id="chief-memo" style="min-height:120px" placeholder="いつから／きっかけ／どんな時に痛むか／既往歴 など"></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 姿勢評価 -->
+  <div class="card">
+    <div class="card-title">姿勢評価（写真・観察から）</div>
+    <div class="form-group">
+      <label>姿勢の所見（あてはまるものをタップ）</label>
+      <div class="chip-group" id="posture-findings">
+        <button class="chip" data-v="頭部前方位（ストレートネック傾向）">頭部前方位</button>
+        <button class="chip" data-v="猫背（胸椎後弯増強）">猫背</button>
+        <button class="chip" data-v="反り腰（骨盤前傾）">反り腰</button>
+        <button class="chip" data-v="フラットバック">フラットバック</button>
+        <button class="chip" data-v="スウェイバック（骨盤前方偏位）">スウェイバック</button>
+        <button class="chip" data-v="肩の高さ左右差">肩の高さ左右差</button>
+        <button class="chip" data-v="骨盤の傾き・回旋">骨盤の傾き・回旋</button>
+        <button class="chip" data-v="膝の過伸展">膝の過伸展</button>
+        <button class="chip" data-v="重心の偏り">重心の偏り</button>
+      </div>
+    </div>
+    <div class="form-group" style="margin-bottom:0">
+      <label>姿勢評価メモ</label>
+      <textarea id="posture-memo" style="min-height:90px" placeholder="マーカー分析の結果や動作チェックの所見など"></textarea>
+    </div>
+  </div>
+
+  <!-- 方針・セルフケア -->
+  <div class="card">
+    <div class="card-title">方針・ご提案</div>
+    <div class="form-group">
+      <label>施術・改善方針</label>
+      <textarea id="plan-memo" style="min-height:90px" placeholder="オンライン整体での進め方、来院提案 など"></textarea>
+    </div>
+    <div class="form-group" style="margin-bottom:0">
+      <label>セルフケア・エクササイズ提案</label>
+      <textarea id="selfcare-memo" style="min-height:90px" placeholder="お伝えしたセルフケア、宿題エクササイズ など"></textarea>
+    </div>
+  </div>
+
+  <button class="btn btn-primary" onclick="saveSession()">💾 シートを保存</button>
+
+</div>
+
+<!-- 写真分析モーダル -->
+<div class="modal-overlay hidden" id="analyze-modal">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-title" id="analyze-title">マーカー分析</div>
+    <div class="form-group">
+      <label>写真の向き（横向き写真の場合）</label>
+      <div class="chip-group" id="an-facing">
+        <button class="chip selected" data-v="left">顔が左向き</button>
+        <button class="chip" data-v="right">顔が右向き</button>
+      </div>
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:8px">
+      マーカーをドラッグ：<span style="color:#e05a5a">耳</span>・<span style="color:#e0a23c">肩</span>・<span style="color:#3ca3e0">股関節</span>・<span style="color:#7c5ae0">膝</span>・<span style="color:#2e8b6e">くるぶし</span>（くるぶし基準の鉛直線との差を計測）
+    </p>
+    <div id="an-canvas-wrap" style="position:relative;touch-action:none;user-select:none">
+      <canvas id="an-canvas" style="width:100%;border-radius:10px;display:block"></canvas>
+    </div>
+    <div id="an-result" style="margin-top:10px;font-size:13px"></div>
+    <div class="modal-footer">
+      <button class="btn btn-primary btn-sm" onclick="saveMarkers()">計測結果を保存</button>
+      <button class="btn btn-outline btn-sm" style="margin-left:auto" onclick="closeAnalyzeModal()">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<script src="/static/js/counseling.js"></script>
+</body>
+</html>

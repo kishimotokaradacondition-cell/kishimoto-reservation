@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>オンライン整体カウンセリング | きしもとカラダcondiTion</title>
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<header class="admin-header">
+  <div class="title">🧍 オンライン整体カウンセリング</div>
+  <div style="display:flex;gap:8px">
+    <a class="btn btn-outline btn-sm" href="/admin" style="color:#fff;border-color:#fff;text-decoration:none">予約管理へ</a>
+    <button class="btn btn-outline btn-sm" onclick="doLogout()" style="color:#fff;border-color:#fff">ログアウト</button>
+  </div>
+</header>
+
+<div class="admin-container">
+
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+      <div class="card-title" style="margin-bottom:0">カウンセリングシート一覧</div>
+      <button class="btn btn-primary btn-sm" onclick="openCreateModal()">＋ 新規カウンセリング開始</button>
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:12px">
+      オンライン整体の予約が入ったら「新規カウンセリング開始」でシートを作成し、
+      通話中にお客様へ写真アップロードリンクを送って姿勢チェックを行います。
+    </p>
+    <div style="overflow-x:auto">
+      <table class="res-table">
+        <thead>
+          <tr><th>作成日時</th><th>お客様</th><th>連絡先</th><th>写真</th><th>状態</th></tr>
+        </thead>
+        <tbody id="cs-tbody"></tbody>
+      </table>
+    </div>
+    <p id="cs-empty" class="hidden" style="text-align:center;color:var(--muted);font-size:13px;padding:20px 0">
+      まだカウンセリングシートはありません
+    </p>
+  </div>
+
+</div>
+
+<!-- 新規作成モーダル -->
+<div class="modal-overlay hidden" id="create-modal">
+  <div class="modal">
+    <div class="modal-title">新規カウンセリング開始</div>
+    <div class="form-group">
+      <label>お客様のお名前<span>*</span></label>
+      <input type="text" id="create-name" placeholder="例）岸本 太郎">
+    </div>
+    <div class="form-group">
+      <label>連絡先（任意）</label>
+      <input type="text" id="create-contact" placeholder="電話番号やメールなど">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="createSession()">作成してシートを開く</button>
+      <button class="btn btn-outline" onclick="closeCreateModal()">キャンセル</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+function showToast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 2500);
+}
+
+async function api(url, opts) {
+  const res = await fetch(url, opts);
+  if (res.status === 401) { location.href = "/admin/login"; throw new Error("unauthorized"); }
+  return res.json();
+}
+
+async function doLogout() {
+  await fetch("/api/admin/logout", { method: "POST" });
+  location.href = "/admin/login";
+}
+
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+async function loadList() {
+  const rows = await api("/api/admin/counseling");
+  document.getElementById("cs-empty").classList.toggle("hidden", rows.length > 0);
+  document.getElementById("cs-tbody").innerHTML = rows.map((r) => `
+    <tr style="cursor:pointer" onclick="location.href='/admin/counseling/${r.id}'">
+      <td style="white-space:nowrap">${esc((r.created_at || "").slice(0, 16))}</td>
+      <td><b>${esc(r.client_name)}</b> 様</td>
+      <td>${esc(r.client_contact || "-")}</td>
+      <td>${r.photo_count ? "📷 " + r.photo_count + "枚" : "-"}</td>
+      <td><span class="tag ${r.status === "done" ? "tag-cancelled" : "tag-confirmed"}">${r.status === "done" ? "完了" : "対応中"}</span></td>
+    </tr>`).join("");
+}
+
+function openCreateModal() {
+  document.getElementById("create-modal").classList.remove("hidden");
+  document.getElementById("create-name").focus();
+}
+function closeCreateModal() {
+  document.getElementById("create-modal").classList.add("hidden");
+}
+
+async function createSession() {
+  const name = document.getElementById("create-name").value.trim();
+  if (!name) { showToast("お名前を入力してください"); return; }
+  const j = await api("/api/admin/counseling", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      client_name: name,
+      client_contact: document.getElementById("create-contact").value.trim(),
+    }),
+  });
+  if (j.ok) location.href = "/admin/counseling/" + j.session_id;
+  else showToast(j.error || "作成に失敗しました");
+}
+
+document.getElementById("create-modal").addEventListener("click", (e) => {
+  if (e.target.id === "create-modal") closeCreateModal();
+});
+
+loadList();
+</script>
+</body>
+</html>

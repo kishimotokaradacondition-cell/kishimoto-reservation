@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>姿勢写真のアップロード | きしもとカラダcondiTion</title>
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div>
+    <div class="logo">姿勢写真のアップロード</div>
+    <div class="subtitle">きしもとカラダcondiTion｜オンライン整体</div>
+  </div>
+</header>
+
+<div class="container">
+
+{% if not valid %}
+  <div class="card" style="text-align:center">
+    <div class="success-icon">⏳</div>
+    <p style="font-size:14px">
+      このアップロードページは現在ご利用いただけません。<br>
+      カウンセリング担当者にお声がけください。
+    </p>
+  </div>
+{% else %}
+
+  <div class="card">
+    <div class="card-title">{{ client_name }} 様</div>
+    <p style="font-size:13px;color:var(--muted)">
+      カウンセリングで使用する姿勢のお写真をお送りください。
+      送信すると担当者の画面にすぐ表示されます。
+    </p>
+  </div>
+
+  <div class="card">
+    <div class="card-title">撮影のポイント</div>
+    <ul style="font-size:13px;color:var(--text);margin-left:18px;display:flex;flex-direction:column;gap:6px">
+      <li><b>全身</b>（頭からつま先まで）が写るように</li>
+      <li>できれば <b>正面</b> と <b>真横</b> の2枚</li>
+      <li>力を抜いて、いつも通りに立つ</li>
+      <li>体のラインが分かる服装だとより正確です</li>
+    </ul>
+    <p style="font-size:11px;color:var(--muted);margin-top:10px">
+      ※ お写真はカウンセリングの評価のみに使用します
+    </p>
+  </div>
+
+  <div class="card">
+    <div class="form-group">
+      <label>写真の種類</label>
+      <div class="chip-group" id="up-label">
+        <button class="chip selected" data-v="正面">正面</button>
+        <button class="chip" data-v="右横">右横</button>
+        <button class="chip" data-v="左横">左横</button>
+        <button class="chip" data-v="後ろ">後ろ</button>
+        <button class="chip" data-v="その他">その他</button>
+      </div>
+    </div>
+    <input type="file" id="up-input" accept="image/*" class="hidden">
+    <button class="btn btn-primary" id="up-btn" onclick="document.getElementById('up-input').click()">
+      📷 写真を選んで送信
+    </button>
+    <div id="up-list" style="margin-top:14px;display:flex;flex-wrap:wrap;gap:8px"></div>
+  </div>
+
+{% endif %}
+
+</div>
+
+<div id="toast"></div>
+
+{% if valid %}
+<script>
+const TOKEN = {{ token | tojson }};
+let sending = false;
+
+function showToast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 3000);
+}
+
+// 種類チップ（単一選択）
+document.querySelectorAll("#up-label .chip").forEach((chip) => {
+  chip.addEventListener("click", () => {
+    document.querySelectorAll("#up-label .chip").forEach((c) => c.classList.remove("selected"));
+    chip.classList.add("selected");
+  });
+});
+
+document.getElementById("up-input").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  e.target.value = "";
+  if (!file || sending) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const img = new Image();
+    img.onload = async () => {
+      const scale = Math.min(1, 1000 / Math.max(img.width, img.height));
+      const c = document.createElement("canvas");
+      c.width = Math.round(img.width * scale);
+      c.height = Math.round(img.height * scale);
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      const dataUrl = c.toDataURL("image/jpeg", 0.82);
+      const label = document.querySelector("#up-label .chip.selected")?.dataset.v || "";
+      sending = true;
+      const btn = document.getElementById("up-btn");
+      btn.disabled = true;
+      btn.textContent = "送信中…";
+      try {
+        const res = await fetch("/api/upload/" + encodeURIComponent(TOKEN), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ photo: dataUrl, label }),
+        });
+        const j = await res.json();
+        if (!res.ok) throw new Error(j.error || "送信に失敗しました");
+        const thumb = document.createElement("div");
+        thumb.style.cssText = "position:relative;width:74px";
+        thumb.innerHTML = `<img src="${dataUrl}" style="width:74px;height:98px;object-fit:cover;border-radius:8px;border:2px solid var(--primary)">` +
+          `<div style="font-size:10px;text-align:center;color:var(--primary-dk);font-weight:600">${label} ✓</div>`;
+        document.getElementById("up-list").appendChild(thumb);
+        showToast("送信しました。続けて別の角度も送れます");
+      } catch (err) {
+        showToast(err.message || "送信に失敗しました");
+      } finally {
+        sending = false;
+        btn.disabled = false;
+        btn.textContent = "📷 写真を選んで送信";
+      }
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+});
+</script>
+{% endif %}
+</body>
+</html>

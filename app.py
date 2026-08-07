@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify, session, redirect, render_template, u
 from flask_cors import CORS
 import sqlite3
 import os
+import secrets
 import smtplib
 import threading
 import json
@@ -76,7 +77,6 @@ IG_LINKS = {
     "home":   HOMEPAGE_URL + "?utm_source=instagram&utm_medium=social&utm_campaign=link_in_bio",
     "seitai": "/",
     "hoken":  "/hoken",
-    "check":  "/check",
     "tel":    "tel:" + SHOP_PHONE,
     "map":    "https://www.google.com/maps/search/?api=1&query=" +
               urllib.parse.quote("きしもとカラダcondiTion 神戸市垂水区舞子"),
@@ -335,43 +335,6 @@ def _send_alert_emails(customer_name, date_str, time_str, service="seitai"):
             print(f"[alert] 失敗 → {to}: {e}")
 
 
-def _send_assessment_email(assess_id, name, age_group, contact,
-                           main_areas, pain_now, pain_worst,
-                           posture_score, posture_type, red_flag):
-    """姿勢・痛みチェックの回答通知をオーナーへ送信（別スレッド実行）"""
-    if not (GMAIL_APP_PASSWORD or SENDGRID_API_KEY) or not NOTIFY_EMAIL:
-        return
-    try:
-        flag_line = "⚠️ レッドフラグ該当あり（医療機関の受診推奨を表示済み）\n" if red_flag else ""
-        body = f"""オンライン姿勢・痛みチェック 回答通知
-{"="*40}
-
-{flag_line}回答番号   : No.{assess_id}
-お名前     : {name} 様
-年代       : {age_group or "（未回答）"}
-連絡先     : {contact or "（未回答）"}
-気になる部位: {main_areas or "（未回答）"}
-痛み（現在）: {pain_now if pain_now is not None else "-"} / 10
-痛み（最大）: {pain_worst if pain_worst is not None else "-"} / 10
-姿勢スコア : {posture_score if posture_score is not None else "-"} / 100
-姿勢タイプ : {posture_type or "-"}
-受付日時   : {datetime.now().strftime("%Y-%m-%d %H:%M")}
-
-詳細は管理画面をご確認ください：
-/admin/assessments
-
-{"="*40}
-きしもとカラダcondiTion
-"""
-        subject = f"【姿勢・痛みチェック】{name}様の回答が届きました"
-        if red_flag:
-            subject = "【要確認・姿勢・痛みチェック】" + f"{name}様の回答が届きました（レッドフラグあり）"
-        _send_one(NOTIFY_EMAIL, subject, body)
-        print(f"[assess] オーナーへ通知送信完了 No.{assess_id}")
-    except Exception as e:
-        print(f"[assess] 通知メール失敗: {e}")
-
-
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "kishimoto-reservation-2026")
 CORS(app, supports_credentials=True)
@@ -418,24 +381,25 @@ def init_db():
                 created_at      TEXT DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (slot_id) REFERENCES slots(id)
             );
-            CREATE TABLE IF NOT EXISTS assessments (
-                id            INTEGER PRIMARY KEY AUTOINCREMENT,
-                created_at    TEXT NOT NULL,
-                name          TEXT NOT NULL,
-                age_group     TEXT,
-                gender        TEXT,
-                contact       TEXT,
-                answers       TEXT NOT NULL,
-                scores        TEXT,
-                red_flag      INTEGER DEFAULT 0,
-                pain_now      INTEGER,
-                pain_worst    INTEGER,
-                posture_score INTEGER,
-                posture_type  TEXT,
-                main_areas    TEXT,
-                photo         TEXT,
-                status        TEXT DEFAULT 'new',
-                admin_memo    TEXT
+            CREATE TABLE IF NOT EXISTS counseling_sessions (
+                id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at     TEXT NOT NULL,
+                updated_at     TEXT,
+                client_name    TEXT NOT NULL,
+                client_contact TEXT,
+                upload_token   TEXT UNIQUE,
+                data           TEXT,
+                status         TEXT DEFAULT 'open'
+            );
+            CREATE TABLE IF NOT EXISTS counseling_photos (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id INTEGER NOT NULL,
+                created_at TEXT NOT NULL,
+                source     TEXT DEFAULT 'client',
+                label      TEXT,
+                photo      TEXT NOT NULL,
+                markers    TEXT,
+                FOREIGN KEY (session_id) REFERENCES counseling_sessions(id)
             );
         """)
         # 既存DBに customer_email 列がない場合は追加（マイグレーション）
@@ -528,10 +492,17 @@ def go_redirect(key):
     return redirect(url)
 
 
-@app.route("/check")
-def assessment_page():
-    """オンライン姿勢・痛みチェック（患者向け）"""
-    return render_template("assessment.html")
+@app.route("/p/<token>")
+def photo_upload_page(token):
+    """カウンセリング中にお客様へ送る写真アップロードページ"""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT id, client_name, status FROM counseling_sessions WHERE upload_token=?",
+            (token,),
+        ).fetchone()
+    if not row or row["status"] != "open":
+        return render_template("upload.html", valid=False, token=token, client_name="")
+    return render_template("upload.html", valid=True, token=token, client_name=row["client_name"])
 
 
 @app.route("/admin")
@@ -541,11 +512,18 @@ def admin_page():
     return render_template("admin.html")
 
 
-@app.route("/admin/assessments")
-def admin_assessments_page():
+@app.route("/admin/counseling")
+def admin_counseling_page():
     if not session.get("admin"):
         return redirect(url_for("admin_login_page"))
-    return render_template("admin_assessments.html")
+    return render_template("admin_counseling.html")
+
+
+@app.route("/admin/counseling/<int:session_id>")
+def admin_counseling_detail_page(session_id):
+    if not session.get("admin"):
+        return redirect(url_for("admin_login_page"))
+    return render_template("admin_counseling_detail.html", session_id=session_id)
 
 
 @app.route("/admin/login")
@@ -726,133 +704,230 @@ def link_stats():
     })
 
 
-# ── 姿勢・痛みチェック API ────────────────────────────────
+# ── オンライン整体カウンセリング API ──────────────────────
 
 # 写真は端末側で縮小したJPEGのdata URIを想定（上限 約1.5MB）
 PHOTO_MAX_LEN = 1_500_000
+PHOTOS_PER_SESSION = 8
 
 
-@app.route("/api/assessments", methods=["POST"])
-def create_assessment():
+def _jst_now_str():
+    return (datetime.utcnow() + timedelta(hours=9)).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _validate_photo(photo):
+    """data URI形式の写真を検証。問題なければNone、あればエラーメッセージを返す"""
+    if not isinstance(photo, str) or not photo.startswith("data:image/"):
+        return "写真データの形式が不正です"
+    if len(photo) > PHOTO_MAX_LEN:
+        return "写真のサイズが大きすぎます。もう一度お試しください"
+    return None
+
+
+@app.route("/api/admin/counseling", methods=["POST"])
+@login_required
+def create_counseling_session():
     data = request.get_json(silent=True) or {}
-    name = (data.get("name") or "").strip()
+    name = (data.get("client_name") or "").strip()
     if not name:
-        return jsonify({"error": "お名前を入力してください"}), 400
-
-    age_group = (data.get("age_group") or "").strip()[:20]
-    gender    = (data.get("gender") or "").strip()[:20]
-    contact   = (data.get("contact") or "").strip()[:100]
-
-    answers = data.get("answers") or {}
-    scores  = data.get("scores") or {}
-    if not isinstance(answers, dict) or not isinstance(scores, dict):
-        return jsonify({"error": "回答データの形式が不正です"}), 400
-
-    def _int_or_none(v, lo=0, hi=100):
-        try:
-            n = int(v)
-            return max(lo, min(hi, n))
-        except (TypeError, ValueError):
-            return None
-
-    pain_now      = _int_or_none(scores.get("pain_now"), 0, 10)
-    pain_worst    = _int_or_none(scores.get("pain_worst"), 0, 10)
-    posture_score = _int_or_none(scores.get("posture_score"), 0, 100)
-    posture_type  = (scores.get("posture_type") or "")[:100]
-    red_flag      = 1 if scores.get("red_flag") else 0
-    main_areas    = "、".join(str(a)[:20] for a in (answers.get("pain_areas") or [])[:12])
-
-    photo = data.get("photo") or None
-    if photo:
-        if not isinstance(photo, str) or not photo.startswith("data:image/"):
-            return jsonify({"error": "写真データの形式が不正です"}), 400
-        if len(photo) > PHOTO_MAX_LEN:
-            return jsonify({"error": "写真のサイズが大きすぎます"}), 400
-
-    jst_now = (datetime.utcnow() + timedelta(hours=9)).strftime("%Y-%m-%d %H:%M:%S")
+        return jsonify({"error": "お客様のお名前を入力してください"}), 400
+    contact = (data.get("client_contact") or "").strip()[:100]
+    token = secrets.token_urlsafe(9)
+    now = _jst_now_str()
     with get_db() as conn:
         cur = conn.execute(
-            """INSERT INTO assessments
-               (created_at, name, age_group, gender, contact, answers, scores,
-                red_flag, pain_now, pain_worst, posture_score, posture_type,
-                main_areas, photo)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (jst_now, name, age_group, gender, contact,
-             json.dumps(answers, ensure_ascii=False),
-             json.dumps(scores, ensure_ascii=False),
-             red_flag, pain_now, pain_worst, posture_score, posture_type,
-             main_areas, photo),
+            """INSERT INTO counseling_sessions
+               (created_at, updated_at, client_name, client_contact, upload_token, data)
+               VALUES (?,?,?,?,?,?)""",
+            (now, now, name[:60], contact, token, "{}"),
         )
-        assess_id = cur.lastrowid
-
-    # オーナーへ通知メール（別スレッド・失敗しても回答は保存済み）
-    threading.Thread(
-        target=_send_assessment_email,
-        args=(assess_id, name, age_group, contact, main_areas,
-              pain_now, pain_worst, posture_score, posture_type, red_flag),
-        daemon=True,
-    ).start()
-
-    return jsonify({"ok": True, "assessment_id": assess_id})
+        sid = cur.lastrowid
+    return jsonify({"ok": True, "session_id": sid})
 
 
-@app.route("/api/admin/assessments")
+@app.route("/api/admin/counseling")
 @login_required
-def list_assessments():
+def list_counseling_sessions():
     with get_db() as conn:
         rows = conn.execute("""
-            SELECT id, created_at, name, age_group, gender, contact,
-                   red_flag, pain_now, pain_worst, posture_score, posture_type,
-                   main_areas, status,
-                   (photo IS NOT NULL) AS has_photo
-            FROM assessments
-            ORDER BY id DESC
+            SELECT s.id, s.created_at, s.updated_at, s.client_name, s.client_contact,
+                   s.status,
+                   (SELECT COUNT(*) FROM counseling_photos p WHERE p.session_id=s.id) AS photo_count
+            FROM counseling_sessions s
+            ORDER BY s.id DESC
         """).fetchall()
     return jsonify([dict(r) for r in rows])
 
 
-@app.route("/api/admin/assessments/<int:assess_id>")
+@app.route("/api/admin/counseling/<int:session_id>")
 @login_required
-def get_assessment(assess_id):
+def get_counseling_session(session_id):
     with get_db() as conn:
         row = conn.execute(
-            "SELECT * FROM assessments WHERE id=?", (assess_id,)
+            "SELECT * FROM counseling_sessions WHERE id=?", (session_id,)
         ).fetchone()
-    if not row:
-        return jsonify({"error": "Not found"}), 404
+        if not row:
+            return jsonify({"error": "Not found"}), 404
+        photos = conn.execute(
+            "SELECT id, created_at, source, label, photo, markers FROM counseling_photos WHERE session_id=? ORDER BY id",
+            (session_id,),
+        ).fetchall()
     d = dict(row)
-    for key in ("answers", "scores"):
+    try:
+        d["data"] = json.loads(d["data"]) if d["data"] else {}
+    except Exception:
+        d["data"] = {}
+    d["photos"] = []
+    for p in photos:
+        pd = dict(p)
         try:
-            d[key] = json.loads(d[key]) if d[key] else {}
+            pd["markers"] = json.loads(pd["markers"]) if pd["markers"] else None
         except Exception:
-            d[key] = {}
+            pd["markers"] = None
+        d["photos"].append(pd)
     return jsonify(d)
 
 
-@app.route("/api/admin/assessments/<int:assess_id>", methods=["PATCH"])
+@app.route("/api/admin/counseling/<int:session_id>/photos")
 @login_required
-def update_assessment(assess_id):
+def poll_counseling_photos(session_id):
+    """after=<photo_id> より新しい写真を返す（カウンセリング中のポーリング用）"""
+    try:
+        after = int(request.args.get("after", 0))
+    except ValueError:
+        after = 0
+    with get_db() as conn:
+        rows = conn.execute(
+            """SELECT id, created_at, source, label, photo, markers
+               FROM counseling_photos WHERE session_id=? AND id>? ORDER BY id""",
+            (session_id, after),
+        ).fetchall()
+    result = []
+    for p in rows:
+        pd = dict(p)
+        try:
+            pd["markers"] = json.loads(pd["markers"]) if pd["markers"] else None
+        except Exception:
+            pd["markers"] = None
+        result.append(pd)
+    return jsonify(result)
+
+
+@app.route("/api/admin/counseling/<int:session_id>", methods=["PATCH"])
+@login_required
+def update_counseling_session(session_id):
     data = request.get_json(silent=True) or {}
     fields, params = [], []
-    if data.get("status") in ("new", "done"):
+    if data.get("status") in ("open", "done"):
         fields.append("status=?")
         params.append(data["status"])
-    if "admin_memo" in data:
-        fields.append("admin_memo=?")
-        params.append((data.get("admin_memo") or "")[:2000])
+    if "data" in data and isinstance(data["data"], dict):
+        fields.append("data=?")
+        params.append(json.dumps(data["data"], ensure_ascii=False)[:100_000])
+    if "client_name" in data and (data.get("client_name") or "").strip():
+        fields.append("client_name=?")
+        params.append(data["client_name"].strip()[:60])
+    if "client_contact" in data:
+        fields.append("client_contact=?")
+        params.append((data.get("client_contact") or "").strip()[:100])
     if not fields:
         return jsonify({"error": "No fields"}), 400
-    params.append(assess_id)
+    fields.append("updated_at=?")
+    params.append(_jst_now_str())
+    params.append(session_id)
     with get_db() as conn:
-        conn.execute(f"UPDATE assessments SET {', '.join(fields)} WHERE id=?", params)
+        conn.execute(f"UPDATE counseling_sessions SET {', '.join(fields)} WHERE id=?", params)
     return jsonify({"ok": True})
 
 
-@app.route("/api/admin/assessments/<int:assess_id>", methods=["DELETE"])
+@app.route("/api/admin/counseling/<int:session_id>", methods=["DELETE"])
 @login_required
-def delete_assessment(assess_id):
+def delete_counseling_session(session_id):
     with get_db() as conn:
-        conn.execute("DELETE FROM assessments WHERE id=?", (assess_id,))
+        conn.execute("DELETE FROM counseling_photos WHERE session_id=?", (session_id,))
+        conn.execute("DELETE FROM counseling_sessions WHERE id=?", (session_id,))
+    return jsonify({"ok": True})
+
+
+@app.route("/api/admin/counseling/<int:session_id>/photos", methods=["POST"])
+@login_required
+def add_counseling_photo(session_id):
+    """スタッフ側から写真を追加（お客様から別途受け取った写真など）"""
+    data = request.get_json(silent=True) or {}
+    photo = data.get("photo")
+    err = _validate_photo(photo)
+    if err:
+        return jsonify({"error": err}), 400
+    with get_db() as conn:
+        if not conn.execute("SELECT id FROM counseling_sessions WHERE id=?", (session_id,)).fetchone():
+            return jsonify({"error": "Not found"}), 404
+        cnt = conn.execute(
+            "SELECT COUNT(*) FROM counseling_photos WHERE session_id=?", (session_id,)
+        ).fetchone()[0]
+        if cnt >= PHOTOS_PER_SESSION:
+            return jsonify({"error": f"写真は1セッション{PHOTOS_PER_SESSION}枚までです"}), 400
+        cur = conn.execute(
+            "INSERT INTO counseling_photos (session_id, created_at, source, label, photo) VALUES (?,?,?,?,?)",
+            (session_id, _jst_now_str(), "staff", (data.get("label") or "")[:40], photo),
+        )
+    return jsonify({"ok": True, "photo_id": cur.lastrowid})
+
+
+@app.route("/api/admin/counseling/photos/<int:photo_id>", methods=["PATCH"])
+@login_required
+def update_counseling_photo(photo_id):
+    data = request.get_json(silent=True) or {}
+    fields, params = [], []
+    if "markers" in data:
+        markers = data["markers"]
+        if markers is not None and not isinstance(markers, dict):
+            return jsonify({"error": "markersの形式が不正です"}), 400
+        fields.append("markers=?")
+        params.append(json.dumps(markers, ensure_ascii=False)[:20_000] if markers else None)
+    if "label" in data:
+        fields.append("label=?")
+        params.append((data.get("label") or "")[:40])
+    if not fields:
+        return jsonify({"error": "No fields"}), 400
+    params.append(photo_id)
+    with get_db() as conn:
+        conn.execute(f"UPDATE counseling_photos SET {', '.join(fields)} WHERE id=?", params)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/admin/counseling/photos/<int:photo_id>", methods=["DELETE"])
+@login_required
+def delete_counseling_photo(photo_id):
+    with get_db() as conn:
+        conn.execute("DELETE FROM counseling_photos WHERE id=?", (photo_id,))
+    return jsonify({"ok": True})
+
+
+@app.route("/api/upload/<token>", methods=["POST"])
+def client_photo_upload(token):
+    """お客様の写真アップロード（カウンセリング中のみ有効なトークン制）"""
+    data = request.get_json(silent=True) or {}
+    photo = data.get("photo")
+    err = _validate_photo(photo)
+    if err:
+        return jsonify({"error": err}), 400
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT id FROM counseling_sessions WHERE upload_token=? AND status='open'",
+            (token,),
+        ).fetchone()
+        if not row:
+            return jsonify({"error": "このアップロードページは現在ご利用いただけません"}), 404
+        sid = row["id"]
+        cnt = conn.execute(
+            "SELECT COUNT(*) FROM counseling_photos WHERE session_id=?", (sid,)
+        ).fetchone()[0]
+        if cnt >= PHOTOS_PER_SESSION:
+            return jsonify({"error": "アップロードできる枚数の上限に達しました"}), 400
+        conn.execute(
+            "INSERT INTO counseling_photos (session_id, created_at, source, label, photo) VALUES (?,?,?,?,?)",
+            (sid, _jst_now_str(), "client", (data.get("label") or "")[:40], photo),
+        )
     return jsonify({"ok": True})
 
 
