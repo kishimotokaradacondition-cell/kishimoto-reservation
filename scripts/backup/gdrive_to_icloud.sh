@@ -75,10 +75,10 @@ rsync -a --update \
 RESULT=$?
 # rsync の 23/24 は「一部のファイルが使用中などでコピーできなかった」程度なので成功扱い
 if [ $RESULT -ne 0 ] && [ $RESULT -ne 23 ] && [ $RESULT -ne 24 ]; then
-  notify_error "コピー中にエラーが発生しました（コード: $RESULT）。詳細はログを確認してください。"
+  notify_error "コピー中にエラーが発生しました（コード: ${RESULT}）。詳細はログを確認してください。"
 fi
 
 COUNT=$(find "$DEST" -type f | wc -l | tr -d ' ')
-log "バックアップ完了（バックアップ内のファイル数: $COUNT）"
+log "バックアップ完了（バックアップ内のファイル数: ${COUNT}）"
 log "===== 終了 ====="
 exit 0
