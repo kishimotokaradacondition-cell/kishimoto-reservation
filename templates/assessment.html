@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>オンライン姿勢・痛みチェック | きしもとカラダcondiTion</title>
+<meta name="description" content="ご自宅で約3分。痛みの状態と姿勢のセルフチェックができます。結果に合わせたセルフケアのアドバイスもその場でご覧いただけます。">
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div>
+    <div class="logo">オンライン姿勢・痛みチェック</div>
+    <div class="subtitle">きしもとカラダcondiTion｜神戸市垂水区舞子</div>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- ステップ表示 -->
+  <div class="steps">
+    <div class="step active" id="as-step1-ind"><div class="step-num">1</div>基本情報</div>
+    <div class="step-arrow">›</div>
+    <div class="step" id="as-step2-ind"><div class="step-num">2</div>痛み</div>
+    <div class="step-arrow">›</div>
+    <div class="step" id="as-step3-ind"><div class="step-num">3</div>姿勢</div>
+    <div class="step-arrow">›</div>
+    <div class="step" id="as-step4-ind"><div class="step-num">4</div>写真</div>
+    <div class="step-arrow">›</div>
+    <div class="step" id="as-step5-ind"><div class="step-num">5</div>結果</div>
+  </div>
+
+  <!-- ══ STEP 1: 基本情報 ══════════════════════════ -->
+  <div id="as-step1">
+    <div class="card">
+      <div class="card-title">はじめに</div>
+      <p style="font-size:13px;color:var(--muted)">
+        約3分で、いまの痛みの状態と姿勢のセルフチェックができます。<br>
+        結果はその場で表示され、当院にも届きます。ご来院時のカウンセリングがスムーズになります。
+      </p>
+      <p style="font-size:11px;color:var(--muted);margin-top:8px">
+        ※ このチェックは医療上の診断を行うものではありません。強い症状がある場合は医療機関にご相談ください。
+      </p>
+    </div>
+    <div class="card">
+      <div class="card-title">あなたについて教えてください</div>
+      <div class="form-group">
+        <label>お名前（ニックネーム可）<span>*</span></label>
+        <input type="text" id="as-name" placeholder="例）岸本 太郎" autocomplete="name">
+      </div>
+      <div class="form-group">
+        <label>年代</label>
+        <div class="chip-group" id="as-age" data-single>
+          <button class="chip" data-v="10代以下">10代以下</button>
+          <button class="chip" data-v="20代">20代</button>
+          <button class="chip" data-v="30代">30代</button>
+          <button class="chip" data-v="40代">40代</button>
+          <button class="chip" data-v="50代">50代</button>
+          <button class="chip" data-v="60代">60代</button>
+          <button class="chip" data-v="70代以上">70代以上</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>性別（任意）</label>
+        <div class="chip-group" id="as-gender" data-single>
+          <button class="chip" data-v="女性">女性</button>
+          <button class="chip" data-v="男性">男性</button>
+          <button class="chip" data-v="回答しない">回答しない</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>連絡先（任意・電話またはメール）</label>
+        <input type="text" id="as-contact" placeholder="例）090-1234-5678">
+        <p style="font-size:11px;color:var(--muted);margin-top:4px">ご入力いただくと、結果について当院からご連絡できます</p>
+      </div>
+      <div class="form-group">
+        <label>ふだんの生活スタイル（近いものをすべて）</label>
+        <div class="chip-group" id="as-lifestyle">
+          <button class="chip" data-v="デスクワーク中心">デスクワーク中心</button>
+          <button class="chip" data-v="立ち仕事">立ち仕事</button>
+          <button class="chip" data-v="力仕事・重い物を持つ">力仕事</button>
+          <button class="chip" data-v="車の運転が長い">運転が長い</button>
+          <button class="chip" data-v="家事・育児">家事・育児</button>
+          <button class="chip" data-v="学生">学生</button>
+          <button class="chip" data-v="スポーツをしている">スポーツ</button>
+        </div>
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="goAsStep(2)">次へ（痛みのチェック）</button>
+  </div>
+
+  <!-- ══ STEP 2: 痛みの評価 ════════════════════════ -->
+  <div id="as-step2" class="hidden">
+    <div class="card">
+      <div class="card-title">気になる部位をタップしてください（複数可）</div>
+      <div class="bodymap-toggle">
+        <button class="bm-btn active" id="bm-front-btn" onclick="switchBody('front')">前から</button>
+        <button class="bm-btn" id="bm-back-btn" onclick="switchBody('back')">後ろから</button>
+      </div>
+      <div class="bodymap-wrap">
+        <svg id="bm-front" viewBox="0 0 200 400" class="bodymap">
+          <g class="bm-outline">
+            <circle cx="100" cy="36" r="21"/>
+            <rect x="91" y="56" width="18" height="14" rx="6"/>
+            <path d="M68 74 Q100 64 132 74 L136 150 Q136 178 128 186 L72 186 Q64 178 64 150 Z"/>
+            <rect x="44" y="80" width="17" height="92" rx="8"/>
+            <rect x="139" y="80" width="17" height="92" rx="8"/>
+            <circle cx="52" cy="184" r="9"/>
+            <circle cx="148" cy="184" r="9"/>
+            <path d="M72 186 L128 186 L126 216 L74 216 Z"/>
+            <rect x="75" y="214" width="21" height="140" rx="9"/>
+            <rect x="104" y="214" width="21" height="140" rx="9"/>
+            <ellipse cx="84" cy="366" rx="13" ry="8"/>
+            <ellipse cx="116" cy="366" rx="13" ry="8"/>
+          </g>
+          <g class="bm-spots">
+            <circle cx="100" cy="36"  r="14" data-area="頭"/>
+            <circle cx="100" cy="66"  r="11" data-area="首"/>
+            <circle cx="76"  cy="84"  r="12" data-area="右肩"/>
+            <circle cx="124" cy="84"  r="12" data-area="左肩"/>
+            <circle cx="100" cy="108" r="13" data-area="胸"/>
+            <circle cx="52"  cy="128" r="10" data-area="右肘"/>
+            <circle cx="148" cy="128" r="10" data-area="左肘"/>
+            <circle cx="52"  cy="180" r="10" data-area="右手首・手"/>
+            <circle cx="148" cy="180" r="10" data-area="左手首・手"/>
+            <circle cx="100" cy="152" r="13" data-area="お腹"/>
+            <circle cx="80"  cy="202" r="11" data-area="右股関節"/>
+            <circle cx="120" cy="202" r="11" data-area="左股関節"/>
+            <circle cx="85"  cy="272" r="12" data-area="右膝"/>
+            <circle cx="115" cy="272" r="12" data-area="左膝"/>
+            <circle cx="85"  cy="356" r="11" data-area="右足首・足"/>
+            <circle cx="115" cy="356" r="11" data-area="左足首・足"/>
+          </g>
+        </svg>
+        <svg id="bm-back" viewBox="0 0 200 400" class="bodymap hidden">
+          <g class="bm-outline">
+            <circle cx="100" cy="36" r="21"/>
+            <rect x="91" y="56" width="18" height="14" rx="6"/>
+            <path d="M68 74 Q100 64 132 74 L136 150 Q136 178 128 186 L72 186 Q64 178 64 150 Z"/>
+            <rect x="44" y="80" width="17" height="92" rx="8"/>
+            <rect x="139" y="80" width="17" height="92" rx="8"/>
+            <circle cx="52" cy="184" r="9"/>
+            <circle cx="148" cy="184" r="9"/>
+            <path d="M72 186 L128 186 L126 216 L74 216 Z"/>
+            <rect x="75" y="214" width="21" height="140" rx="9"/>
+            <rect x="104" y="214" width="21" height="140" rx="9"/>
+            <ellipse cx="84" cy="366" rx="13" ry="8"/>
+            <ellipse cx="116" cy="366" rx="13" ry="8"/>
+          </g>
+          <g class="bm-spots">
+            <circle cx="100" cy="36"  r="14" data-area="後頭部"/>
+            <circle cx="100" cy="66"  r="11" data-area="首（後ろ）"/>
+            <circle cx="124" cy="84"  r="12" data-area="右肩（後ろ）"/>
+            <circle cx="76"  cy="84"  r="12" data-area="左肩（後ろ）"/>
+            <circle cx="100" cy="110" r="14" data-area="背中（上部）"/>
+            <circle cx="100" cy="158" r="14" data-area="腰"/>
+            <circle cx="100" cy="198" r="13" data-area="お尻"/>
+            <circle cx="115" cy="255" r="12" data-area="右もも裏"/>
+            <circle cx="85"  cy="255" r="12" data-area="左もも裏"/>
+            <circle cx="115" cy="325" r="12" data-area="右ふくらはぎ"/>
+            <circle cx="85"  cy="325" r="12" data-area="左ふくらはぎ"/>
+          </g>
+        </svg>
+      </div>
+      <div id="bm-selected" class="bm-selected"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">痛みの強さ</div>
+      <div class="form-group">
+        <label>いまの痛み：<b class="nrs-val" id="nrs-now-val">0</b> / 10</label>
+        <input type="range" class="nrs" id="nrs-now" min="0" max="10" value="0">
+        <div class="nrs-scale"><span>痛みなし</span><span>想像できる最大の痛み</span></div>
+      </div>
+      <div class="form-group">
+        <label>ここ1週間で最もつらい時：<b class="nrs-val" id="nrs-worst-val">0</b> / 10</label>
+        <input type="range" class="nrs" id="nrs-worst" min="0" max="10" value="0">
+        <div class="nrs-scale"><span>痛みなし</span><span>想像できる最大の痛み</span></div>
+      </div>
+      <div class="form-group">
+        <label>日常生活への支障：<b class="nrs-val" id="nrs-adl-val">0</b> / 10</label>
+        <input type="range" class="nrs" id="nrs-adl" min="0" max="10" value="0">
+        <div class="nrs-scale"><span>支障なし</span><span>ほぼ何もできない</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">痛みについて</div>
+      <div class="form-group">
+        <label>どんな痛みですか？（複数可）</label>
+        <div class="chip-group" id="as-quality">
+          <button class="chip" data-v="ズキズキする">ズキズキ</button>
+          <button class="chip" data-v="重だるい">重だるい</button>
+          <button class="chip" data-v="鋭い・電気が走る">鋭い・電気が走る</button>
+          <button class="chip" data-v="ジンジンしびれる">しびれる</button>
+          <button class="chip" data-v="こわばる・つっぱる">こわばる</button>
+          <button class="chip" data-v="うずく">うずく</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>いつ痛みますか？（複数可）</label>
+        <div class="chip-group" id="as-timing">
+          <button class="chip" data-v="朝起きたとき">朝起きたとき</button>
+          <button class="chip" data-v="動き始め">動き始め</button>
+          <button class="chip" data-v="同じ姿勢が続いたとき">同じ姿勢が続くと</button>
+          <button class="chip" data-v="動作中・運動時">動作中・運動時</button>
+          <button class="chip" data-v="夜間・就寝時">夜間・就寝時</button>
+          <button class="chip" data-v="ほぼ常に">ほぼ常に</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>いつ頃からですか？</label>
+        <div class="chip-group" id="as-duration" data-single>
+          <button class="chip" data-v="1週間以内">1週間以内</button>
+          <button class="chip" data-v="1ヶ月以内">1ヶ月以内</button>
+          <button class="chip" data-v="3ヶ月以内">3ヶ月以内</button>
+          <button class="chip" data-v="3ヶ月以上前から">3ヶ月以上</button>
+          <button class="chip" data-v="良くなったり悪くなったりを繰り返す">繰り返している</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">念のための確認（あてはまるものすべて）</div>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:10px">
+        次の項目は、整体の前に医療機関での確認をおすすめする目安です。
+      </p>
+      <div class="rf-list" id="as-redflags">
+        <label class="rf-item"><input type="checkbox" value="夜間に痛みで目が覚める日が続いている"><span>夜間に痛みで目が覚める日が続いている</span></label>
+        <label class="rf-item"><input type="checkbox" value="手足のしびれ・力の入りにくさが強くなっている"><span>手足のしびれ・力の入りにくさが強くなっている</span></label>
+        <label class="rf-item"><input type="checkbox" value="発熱や急な体重減少を伴う"><span>発熱や急な体重減少を伴う</span></label>
+        <label class="rf-item"><input type="checkbox" value="転倒・事故など強い衝撃のあとから痛む"><span>転倒・事故など強い衝撃のあとから痛む</span></label>
+        <label class="rf-item"><input type="checkbox" value="排尿・排便の異常を伴う"><span>排尿・排便の異常を伴う</span></label>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" onclick="goAsStep(3)">次へ（姿勢チェック）</button>
+    <button class="btn btn-outline" style="margin-top:10px" onclick="goAsStep(1)">← 戻る</button>
+  </div>
+
+  <!-- ══ STEP 3: 姿勢セルフチェック ════════════════ -->
+  <div id="as-step3" class="hidden">
+    <div class="card">
+      <div class="card-title">壁立ちチェック</div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px">
+        壁に <b>かかと・お尻・背中</b> をつけて、まっすぐ立ってみてください。
+      </p>
+      <div class="form-group">
+        <label>Q1. 後頭部は壁につきますか？</label>
+        <div class="chip-group chip-col" id="as-wall-head" data-single>
+          <button class="chip" data-v="自然につく">自然につく</button>
+          <button class="chip" data-v="意識すればつく">意識すれば（顎を引けば）つく</button>
+          <button class="chip" data-v="つかない・顎が上がる">つかない／顎が上がってしまう</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Q2. 腰と壁のすき間はどれくらいですか？</label>
+        <div class="chip-group chip-col" id="as-wall-lumbar" data-single>
+          <button class="chip" data-v="手のひら1枚程度">手のひら1枚くらい（ちょうど良い）</button>
+          <button class="chip" data-v="手のひら2枚以上・こぶしが入る">手のひら2枚以上／こぶしが入る</button>
+          <button class="chip" data-v="ほとんどすき間がない">ほとんどすき間がない</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">鏡でのチェック</div>
+      <div class="form-group">
+        <label>Q3. 正面から見て、左右の肩の高さは？</label>
+        <div class="chip-group" id="as-shoulder" data-single>
+          <button class="chip" data-v="ほぼ同じ">ほぼ同じ</button>
+          <button class="chip" data-v="少し違う">少し違う</button>
+          <button class="chip" data-v="明らかに違う">明らかに違う</button>
+          <button class="chip" data-v="わからない">わからない</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Q4. 靴底の減り方は？</label>
+        <div class="chip-group" id="as-shoes" data-single>
+          <button class="chip" data-v="ほぼ均等">ほぼ均等</button>
+          <button class="chip" data-v="外側が減る">外側が減る</button>
+          <button class="chip" data-v="内側が減る">内側が減る</button>
+          <button class="chip" data-v="左右で減り方が違う">左右で違う</button>
+          <button class="chip" data-v="わからない">わからない</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">あてはまる習慣（複数可）</div>
+      <div class="chip-group chip-col" id="as-habits">
+        <button class="chip" data-v="脚を組むことが多い">脚を組むことが多い</button>
+        <button class="chip" data-v="横座り・ぺたんこ座りをする">横座り・ぺたんこ座りをする</button>
+        <button class="chip" data-v="いつも同じ側で荷物を持つ">いつも同じ側で荷物を持つ</button>
+        <button class="chip" data-v="スマホを見る時間が長い（うつむき姿勢）">スマホを見る時間が長い（うつむき姿勢）</button>
+        <button class="chip" data-v="デスクワークが1日6時間以上">デスクワークが1日6時間以上</button>
+        <button class="chip" data-v="運動習慣がほとんどない">運動習慣がほとんどない</button>
+        <button class="chip" data-v="枕が合っていない気がする">枕が合っていない気がする</button>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" onclick="goAsStep(4)">次へ（写真チェック）</button>
+    <button class="btn btn-outline" style="margin-top:10px" onclick="goAsStep(2)">← 戻る</button>
+  </div>
+
+  <!-- ══ STEP 4: 写真チェック（任意） ══════════════ -->
+  <div id="as-step4" class="hidden">
+    <div class="card">
+      <div class="card-title">横向き写真で姿勢チェック（任意）</div>
+      <p style="font-size:13px;color:var(--muted)">
+        <b>真横から全身</b>が写った写真で、立ち姿勢のバランスを簡易チェックできます。
+      </p>
+      <ul style="font-size:12px;color:var(--muted);margin:8px 0 12px 18px">
+        <li>ご家族に撮ってもらうか、タイマー撮影がおすすめです</li>
+        <li>力を抜いて、いつも通りに立ってください</li>
+        <li>写真は当院のみが確認します（スキップも可能です）</li>
+      </ul>
+      <input type="file" id="as-photo-input" accept="image/*" class="hidden">
+      <button class="btn btn-outline" onclick="document.getElementById('as-photo-input').click()">📷 写真を選ぶ</button>
+    </div>
+
+    <div class="card hidden" id="as-photo-card">
+      <div class="card-title">5つの目印を合わせてください</div>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:8px">
+        マーカーをドラッグして <b>耳・肩・股関節（脚の付け根の外側）・膝・くるぶし</b> に合わせてください。
+      </p>
+      <div class="form-group">
+        <label>写真の向き</label>
+        <div class="chip-group" id="as-facing" data-single>
+          <button class="chip selected" data-v="left">顔が左向き</button>
+          <button class="chip" data-v="right">顔が右向き</button>
+        </div>
+      </div>
+      <div id="as-canvas-wrap" style="position:relative;touch-action:none;user-select:none">
+        <canvas id="as-canvas" style="width:100%;border-radius:10px;display:block"></canvas>
+      </div>
+      <p style="font-size:11px;color:var(--muted);margin-top:6px">
+        ● <span style="color:#e05a5a">耳</span> ／ <span style="color:#e0a23c">肩</span> ／ <span style="color:#3ca3e0">股関節</span> ／ <span style="color:#7c5ae0">膝</span> ／ <span style="color:#2e8b6e">くるぶし</span>
+      </p>
+    </div>
+
+    <button class="btn btn-primary" onclick="submitAssessment()">結果を見る</button>
+    <button class="btn btn-outline" style="margin-top:10px" onclick="goAsStep(3)">← 戻る</button>
+    <p style="font-size:11px;color:var(--muted);text-align:center;margin-top:10px">
+      「結果を見る」を押すと、回答内容が当院に送信されます
+    </p>
+  </div>
+
+  <!-- ══ STEP 5: 結果 ══════════════════════════════ -->
+  <div id="as-step5" class="hidden">
+    <div id="as-result"></div>
+    <a class="btn btn-primary" href="/" style="text-decoration:none;margin-top:6px">📅 整体を予約する</a>
+    <a class="btn btn-outline" href="/hoken" style="text-decoration:none;margin-top:10px">保険診療のご予約はこちら</a>
+    <p style="font-size:11px;color:var(--muted);text-align:center;margin-top:14px">
+      ※ 本チェックの結果は目安であり、医療上の診断に代わるものではありません。
+    </p>
+  </div>
+
+</div>
+
+<div id="toast"></div>
+<script src="/static/js/assessment.js"></script>
+</body>
+</html>
