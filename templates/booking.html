@@ -167,7 +167,7 @@
       </p>
       {% if service == 'online' %}
       {% if stripe_link %}
-      <a class="btn btn-primary" href="{{ stripe_link }}" target="_blank" rel="noopener"
+      <a class="btn btn-primary" id="pay-link" href="{{ stripe_link }}" target="_blank" rel="noopener"
          style="display:block;text-decoration:none;margin-bottom:10px">💳 お支払いへ進む（税込3,300円）</a>
       {% endif %}
       <div style="background:#f0f7f4;border-radius:10px;padding:12px;font-size:13px;text-align:left;margin-bottom:16px">

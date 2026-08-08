@@ -232,6 +232,10 @@ async function submitReservation() {
       document.getElementById("input-phone").value.trim();
     document.getElementById("done-id").textContent = `No.${data.reservation_id}`;
 
+    // オンライン: 決済リンクを予約番号つきに差し替え（入金の自動突き合わせ用）
+    const payLink = document.getElementById("pay-link");
+    if (payLink && data.payment_url) payLink.href = data.payment_url;
+
     goStep(5);
   } catch {
     toast("通信エラーが発生しました");

@@ -339,6 +339,7 @@ async function viewBooking(slotId) {
       <div class="confirm-row"><dt>電話番号</dt><dd>${r.customer_phone}</dd></div>
       ${r.customer_note ? `<div class="confirm-row"><dt>ご要望</dt><dd>${r.customer_note}</dd></div>` : ""}
       ${r.service === "online" ? `<div class="confirm-row"><dt>Meet</dt><dd>${r.meet_url ? `<a href="${r.meet_url}" target="_blank">${r.meet_url}</a>` : "（未発行）"}</dd></div>` : ""}
+      ${r.service === "online" ? `<div class="confirm-row"><dt>入金</dt><dd>${r.payment_status === "paid" ? `<span style="color:#256d4a;font-weight:700">入金済</span>${r.paid_at ? `（${r.paid_at.slice(0,16)}）` : ""}` : '<span style="color:#c33;font-weight:700">未入金</span>'}</dd></div>` : ""}
       <div class="confirm-row"><dt>予約日時</dt><dd>${r.created_at.slice(0,16)}</dd></div>
     </dl>
     <button class="btn btn-danger" style="margin-top:16px" onclick="cancelReservation(${r.id})">
@@ -380,7 +381,7 @@ async function loadReservations() {
     <div style="overflow-x:auto">
     <table class="res-table">
       <thead><tr>
-        <th>日付</th><th>時間</th><th>種別</th><th>お名前</th><th>電話番号</th><th>ご要望</th><th></th>
+        <th>日付</th><th>時間</th><th>種別</th><th>入金</th><th>お名前</th><th>電話番号</th><th>ご要望</th><th></th>
       </tr></thead>
       <tbody>
         ${list.map(r => `
@@ -388,6 +389,11 @@ async function loadReservations() {
             <td>${fmtDate(r.date)}</td>
             <td>${fmtTime(r.time)}</td>
             <td>${r.service === "hoken" ? "保険" : (r.service === "online" ? "オンライン" : "整体")}</td>
+            <td>${r.service === "online"
+                  ? (r.payment_status === "paid"
+                      ? '<span style="color:#256d4a;font-weight:700">済</span>'
+                      : '<span style="color:#c33;font-weight:700">未</span>')
+                  : '<span style="color:var(--muted)">—</span>'}</td>
             <td style="font-weight:600">${r.customer_name}</td>
             <td>${r.customer_phone}</td>
             <td style="font-size:12px;color:var(--muted)">${r.customer_note || "—"}</td>
