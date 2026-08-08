@@ -65,7 +65,23 @@ HOLIDAY_CUTOFF = "18:00:00"
 DOW_JA = ["月","火","水","木","金","土","日"]
 
 # サービス種別ラベル
-SERVICE_LABELS = {"seitai": "きしもとカラダ整体", "hoken": "保険診療"}
+SERVICE_LABELS = {
+    "seitai": "きしもとカラダ整体",
+    "hoken":  "保険診療",
+    "online": "オンラインカウンセリング整体",
+}
+
+# ── オンラインカウンセリング整体 ─────────────────────────
+# 30分 税込3,300円・前払い制（Stripe決済リンク）
+# 受付時間: 火・日 12:00〜22:00 ／ 月・水〜土 21:00〜22:00
+ONLINE_PRICE_LABEL = "30分 税込3,300円"
+ONLINE_CANCEL_POLICY = "キャンセルは自由ですが、キャンセルによるご返金はいたしかねます。"
+# Stripeの決済リンクURL（きしもとマネジメントオフィスのStripeで作成した
+# 3,300円のPayment LinkのURLを設定する。未設定時はメール・画面に案内文のみ表示）
+STRIPE_PAYMENT_LINK_URL = (getattr(_cfg, "STRIPE_PAYMENT_LINK_URL", "") if _cfg else "") \
+    or os.environ.get("STRIPE_PAYMENT_LINK_URL", "")
+# 21:00より前の枠を開けられる曜日（火=1・日=6。それ以外は21:00〜のみ）
+ONLINE_FULLDAY_WEEKDAYS = (1, 6)
 
 # ── Instagram誘導リンク（/ig ページ → /go/<key> 経由で計測して転送）──
 HOMEPAGE_URL = "https://www.kishimotocondition.com/"
@@ -76,6 +92,7 @@ IG_LINKS = {
     "home":   HOMEPAGE_URL + "?utm_source=instagram&utm_medium=social&utm_campaign=link_in_bio",
     "seitai": "/",
     "hoken":  "/hoken",
+    "online": "/online",
     "tel":    "tel:" + SHOP_PHONE,
     "map":    "https://www.google.com/maps/search/?api=1&query=" +
               urllib.parse.quote("きしもとカラダcondiTion 神戸市垂水区舞子"),
@@ -103,15 +120,52 @@ def _make_body(res_id, customer_name, customer_phone, customer_note,
 """
 
 
+def _online_customer_sections(meet_url=""):
+    """オンラインカウンセリング整体のお客様向けメールに追記する案内文"""
+    if meet_url:
+        meet_part = (
+            "【当日のご参加方法（Google Meet）】\n"
+            "開始時刻になりましたら、下記のリンクからご参加ください。\n"
+            f"{meet_url}\n"
+            "（スマホの場合は Google Meet アプリのインストールをおすすめします）\n"
+        )
+    else:
+        meet_part = (
+            "【当日のご参加方法（Google Meet）】\n"
+            "参加用のGoogle Meetリンクは、ご予約日までに別途メールでお送りします。\n"
+        )
+    if STRIPE_PAYMENT_LINK_URL:
+        pay_part = (
+            "【お支払い（前払い制）】\n"
+            f"料金：{ONLINE_PRICE_LABEL}\n"
+            "下記のリンクから、ご予約日までにお支払いをお願いいたします。\n"
+            f"{STRIPE_PAYMENT_LINK_URL}\n"
+        )
+    else:
+        pay_part = (
+            "【お支払い（前払い制）】\n"
+            f"料金：{ONLINE_PRICE_LABEL}\n"
+            "お支払い方法は別途ご案内いたします。\n"
+        )
+    return (
+        "\n" + meet_part +
+        "\n" + pay_part +
+        "\n【キャンセルについて】\n"
+        f"{ONLINE_CANCEL_POLICY}\n"
+    )
+
+
 def _notify_gcal(action, res_id, customer_name="", customer_phone="", customer_note="",
-                 slot_date="", slot_time="", slot_duration=45, service="seitai"):
+                 slot_date="", slot_time="", slot_duration=45, service="seitai",
+                 customer_email=""):
     """Google Apps Script Webhook経由でGoogleカレンダーに予定を作成/削除する。
 
     GCAL_WEBHOOK_URL が未設定なら何もしない（連携オフ）。
     失敗しても予約処理には影響させない（別スレッドから呼ばれる前提）。
+    オンライン枠の作成時は、GAS側が発行したGoogle MeetのURLを返す。
     """
     if not GCAL_WEBHOOK_URL:
-        return
+        return ""
     try:
         payload = json.dumps({
             "token": GCAL_WEBHOOK_TOKEN,
@@ -119,10 +173,12 @@ def _notify_gcal(action, res_id, customer_name="", customer_phone="", customer_n
             "reservation_id": res_id,
             "customer_name": customer_name,
             "customer_phone": customer_phone,
+            "customer_email": customer_email,
             "customer_note": customer_note,
             "date": slot_date,                     # YYYY-MM-DD
             "time": (slot_time or "")[:5],         # HH:MM
             "duration": slot_duration,             # 分
+            "service": service,                    # "online" ならMeetリンクを発行
             "service_label": service_label(service),
         }, ensure_ascii=False).encode("utf-8")
         req = urllib.request.Request(
@@ -131,9 +187,15 @@ def _notify_gcal(action, res_id, customer_name="", customer_phone="", customer_n
             headers={"Content-Type": "application/json"},
         )
         with urllib.request.urlopen(req, timeout=20) as resp:
-            print(f"[gcal] {action} No.{res_id} → HTTP {resp.status}")
+            body = resp.read().decode("utf-8", errors="replace")
+            print(f"[gcal] {action} No.{res_id} → HTTP {resp.status} {body[:200]}")
+            try:
+                return (json.loads(body) or {}).get("meet_url", "") or ""
+            except Exception:
+                return ""
     except Exception as e:
         print(f"[gcal] 連携失敗 ({action} No.{res_id}): {e}")
+        return ""
 
 
 def _ics_escape(text):
@@ -229,7 +291,8 @@ def _send_one(to_addr, subject, body, ics=None):
 
 
 def _send_email(res_id, customer_name, customer_phone, customer_email,
-                customer_note, slot_date, slot_time, slot_duration, service="seitai"):
+                customer_note, slot_date, slot_time, slot_duration, service="seitai",
+                meet_url=""):
     """予約確定メールを2通送信（別スレッド実行・失敗してもサーバーは止めない）"""
     if not (GMAIL_APP_PASSWORD or SENDGRID_API_KEY):
         return
@@ -246,10 +309,13 @@ def _send_email(res_id, customer_name, customer_phone, customer_email,
         # ── Email 1: お客様へ予約確認 ──────────────────────
         if customer_email:
             try:
+                customer_body = f"{customer_name} 様\n\nご予約が確定しました。\n\n" + body
+                if service == "online":
+                    customer_body += _online_customer_sections(meet_url)
                 _send_one(
                     customer_email,
                     f"【ご予約確定】{label} {date_str} {time_str}〜",
-                    f"{customer_name} 様\n\nご予約が確定しました。\n\n" + body
+                    customer_body
                 )
                 print(f"[mail] お客様へ送信完了 → {customer_email}  No.{res_id}")
             except Exception as e:
@@ -268,10 +334,16 @@ def _send_email(res_id, customer_name, customer_phone, customer_email,
                                      slot_duration, service)
                 except Exception as e:
                     print(f"[mail] ICS生成失敗: {e}")
+            owner_body = f"新しい予約が入りました。\n\n" + body
+            if service == "online":
+                owner_body += (
+                    f"\n【オンライン】Google Meet: {meet_url or '（リンク未発行。手動で送付してください）'}\n"
+                    f"料金: {ONLINE_PRICE_LABEL}（前払い・Stripe決済リンク）\n"
+                )
             _send_one(
                 NOTIFY_EMAIL,
                 f"【新規予約】{customer_name}様 {date_str} {time_str}〜",
-                f"新しい予約が入りました。\n\n" + body,
+                owner_body,
                 ics=ics,
             )
             print(f"[mail] オーナーへ送信完了 → {NOTIFY_EMAIL}  No.{res_id}")
@@ -386,6 +458,11 @@ def init_db():
             conn.execute("ALTER TABLE reservations ADD COLUMN customer_email TEXT")
         except Exception:
             pass
+        # オンライン枠用: Google MeetのURLを保存する列
+        try:
+            conn.execute("ALTER TABLE reservations ADD COLUMN meet_url TEXT")
+        except Exception:
+            pass
         # 既存DBに service 列がない場合は追加（整体=seitai / 保険=hoken）
         try:
             conn.execute("ALTER TABLE slots ADD COLUMN service TEXT DEFAULT 'seitai'")
@@ -442,6 +519,12 @@ def booking_page():
 @app.route("/hoken")
 def hoken_booking_page():
     return render_template("booking.html", service="hoken")
+
+
+@app.route("/online")
+def online_booking_page():
+    return render_template("booking.html", service="online",
+                           stripe_link=STRIPE_PAYMENT_LINK_URL)
 
 
 @app.route("/ig")
@@ -519,6 +602,13 @@ def create_slot():
             # 祝日は HOLIDAY_CUTOFF 以降のスロットをスキップ（整体のみ）
             if holiday_adjust and svc == "seitai" and is_jp_holiday(s["date"]) and t >= HOLIDAY_CUTOFF:
                 continue
+            # オンラインは 火・日のみ12:00〜、それ以外の曜日は21:00〜のみ
+            if svc == "online" and t < "21:00:00":
+                try:
+                    if date.fromisoformat(s["date"]).weekday() not in ONLINE_FULLDAY_WEEKDAYS:
+                        continue
+                except ValueError:
+                    continue
             try:
                 conn.execute(
                     "INSERT OR IGNORE INTO slots (date, time, duration, service) VALUES (?,?,?,?)",
@@ -587,7 +677,7 @@ def list_reservations():
     with get_db() as conn:
         rows = conn.execute("""
             SELECT r.id, r.slot_id, r.customer_name, r.customer_phone, r.customer_note,
-                   r.status, r.created_at,
+                   r.status, r.created_at, r.meet_url,
                    s.date, s.time, s.duration, s.service
             FROM reservations r
             JOIN slots s ON r.slot_id = s.id
@@ -737,21 +827,42 @@ def create_reservation():
 
     slot_service = slot["service"] if "service" in slot.keys() else "seitai"
 
-    # 予約確定メールを別スレッドで送信（失敗しても予約は確定）
-    threading.Thread(
-        target=_send_email,
-        args=(res_id, name, phone, email, note,
-              slot["date"], slot["time"], slot["duration"], slot_service),
-        daemon=True,
-    ).start()
+    if slot_service == "online":
+        # オンラインは順序が大事:
+        # ①カレンダー登録でGoogle Meetリンクを発行 → ②リンク入りの確認メールを送信
+        def _online_flow():
+            meet_url = _notify_gcal(
+                "create", res_id, name, phone, note,
+                slot["date"], slot["time"], slot["duration"], slot_service,
+                customer_email=email,
+            )
+            if meet_url:
+                try:
+                    with get_db() as conn:
+                        conn.execute("UPDATE reservations SET meet_url=? WHERE id=?",
+                                     (meet_url, res_id))
+                except Exception as e:
+                    print(f"[gcal] meet_url保存失敗 No.{res_id}: {e}")
+            _send_email(res_id, name, phone, email, note,
+                        slot["date"], slot["time"], slot["duration"], slot_service,
+                        meet_url=meet_url)
+        threading.Thread(target=_online_flow, daemon=True).start()
+    else:
+        # 予約確定メールを別スレッドで送信（失敗しても予約は確定）
+        threading.Thread(
+            target=_send_email,
+            args=(res_id, name, phone, email, note,
+                  slot["date"], slot["time"], slot["duration"], slot_service),
+            daemon=True,
+        ).start()
 
-    # Googleカレンダーに予定を自動作成（GCAL_WEBHOOK_URL設定済み時のみ動作）
-    threading.Thread(
-        target=_notify_gcal,
-        args=("create", res_id, name, phone, note,
-              slot["date"], slot["time"], slot["duration"], slot_service),
-        daemon=True,
-    ).start()
+        # Googleカレンダーに予定を自動作成（GCAL_WEBHOOK_URL設定済み時のみ動作）
+        threading.Thread(
+            target=_notify_gcal,
+            args=("create", res_id, name, phone, note,
+                  slot["date"], slot["time"], slot["duration"], slot_service),
+            daemon=True,
+        ).start()
 
     # SMS通知を別スレッドで送信（Twilio設定済み時のみ動作）
     threading.Thread(target=_send_sms_all, daemon=True).start()

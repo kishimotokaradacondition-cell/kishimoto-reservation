@@ -27,7 +27,20 @@ const SERVICE_CONFIG = {
     duration: 30,
     dows: [1, 3, 4, 5, 6],   // 月・水・木・金・土
   },
+  online: {
+    label: "オンライン",
+    // 火・日は12:00〜、それ以外の曜日は21:00〜のみ（サーバー側でも自動除外）
+    times: ["12:00", "12:30", "13:00", "13:30", "14:00", "14:30",
+            "15:00", "15:30", "16:00", "16:30", "17:00", "17:30",
+            "18:00", "18:30", "19:00", "19:30", "20:00", "20:30",
+            "21:00", "21:30"],
+    duration: 30,
+    dows: [0, 1, 2, 3, 4, 5, 6],   // 毎日（21:00〜の枠）
+  },
 };
+
+// オンライン: 21:00より前の枠を開けられる曜日（日=0・火=2）
+const ONLINE_FULLDAY_DOWS = [0, 2];
 
 function currentService() {
   return document.querySelector('#service-select input[name="service"]:checked')?.value || "seitai";
@@ -56,8 +69,24 @@ function onServiceChange() {
   const hg = document.getElementById("holiday-adjust-group");
   if (hg) hg.style.display = svc === "seitai" ? "" : "none";
 
+  // オンラインの受付時間の説明
+  const hint = document.getElementById("online-hours-hint");
+  if (hint) hint.style.display = svc === "online" ? "" : "none";
+
   // 1枠ずつモードの時間初期値
   document.getElementById("add-time").value = cfg.times[0];
+}
+
+// オンライン: 選んだ時間帯に合わせて曜日チェックを自動調整
+// （21:00より前 → 火・日のみ／21:00以降 → 毎日）
+function adjustOnlineDows() {
+  if (currentService() !== "online") return;
+  const selTime = document.querySelector("#time-checkboxes input[type='radio']:checked")?.value;
+  if (!selTime) return;
+  const dows = selTime < "21:00" ? ONLINE_FULLDAY_DOWS : SERVICE_CONFIG.online.dows;
+  document.querySelectorAll("#dow-checkboxes input").forEach(cb => {
+    cb.checked = dows.includes(parseInt(cb.value));
+  });
 }
 
 function monthKey() {
@@ -94,6 +123,7 @@ const LINK_LABELS = {
   home:   "🏠 きしもとカラダcondiTionをチェック",
   seitai: "📅 整体のご予約",
   hoken:  "🩺 保険診療のご予約",
+  online: "💻 オンラインカウンセリング整体",
   tel:    "📞 電話で問い合わせ",
   map:    "📍 アクセス・地図",
 };
@@ -240,7 +270,9 @@ function showDaySlots(iso) {
 
       const svcTag = s.service === "hoken"
         ? '<span class="tag" style="background:#e3f2fd;color:#1565c0">保険</span>'
-        : '<span class="tag" style="background:#f0f4ef;color:var(--primary)">整体</span>';
+        : (s.service === "online"
+            ? '<span class="tag" style="background:#f3e8fd;color:#7b3fbf">オンライン</span>'
+            : '<span class="tag" style="background:#f0f4ef;color:var(--primary)">整体</span>');
 
       li.innerHTML = `
         <div>
@@ -306,6 +338,7 @@ async function viewBooking(slotId) {
       <div class="confirm-row"><dt>お名前</dt><dd>${r.customer_name}</dd></div>
       <div class="confirm-row"><dt>電話番号</dt><dd>${r.customer_phone}</dd></div>
       ${r.customer_note ? `<div class="confirm-row"><dt>ご要望</dt><dd>${r.customer_note}</dd></div>` : ""}
+      ${r.service === "online" ? `<div class="confirm-row"><dt>Meet</dt><dd>${r.meet_url ? `<a href="${r.meet_url}" target="_blank">${r.meet_url}</a>` : "（未発行）"}</dd></div>` : ""}
       <div class="confirm-row"><dt>予約日時</dt><dd>${r.created_at.slice(0,16)}</dd></div>
     </dl>
     <button class="btn btn-danger" style="margin-top:16px" onclick="cancelReservation(${r.id})">
@@ -354,7 +387,7 @@ async function loadReservations() {
           <tr>
             <td>${fmtDate(r.date)}</td>
             <td>${fmtTime(r.time)}</td>
-            <td>${r.service === "hoken" ? "保険" : "整体"}</td>
+            <td>${r.service === "hoken" ? "保険" : (r.service === "online" ? "オンライン" : "整体")}</td>
             <td style="font-weight:600">${r.customer_name}</td>
             <td>${r.customer_phone}</td>
             <td style="font-size:12px;color:var(--muted)">${r.customer_note || "—"}</td>
@@ -425,6 +458,7 @@ function buildTimeCheckboxes() {
       l.style.borderColor = l.querySelector("input").checked ? "var(--primary)" : "var(--border)";
       l.style.background  = l.querySelector("input").checked ? "var(--primary-lt)" : "";
     });
+    adjustOnlineDows();
   });
   // 初期スタイル
   const firstLabel = box.querySelector("label");

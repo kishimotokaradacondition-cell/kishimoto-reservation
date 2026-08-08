@@ -3,15 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{% if service == 'hoken' %}保険診療のご予約{% else %}ご予約{% endif %} | きしもとカラダcondiTion</title>
+<title>{% if service == 'hoken' %}保険診療のご予約{% elif service == 'online' %}オンラインカウンセリング整体のご予約{% else %}ご予約{% endif %} | きしもとカラダcondiTion</title>
 <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
 
 <header class="site-header">
   <div>
-    <div class="logo">{% if service == 'hoken' %}保険診療のご予約{% else %}きしもとカラダ整体{% endif %}</div>
-    <div class="subtitle">きしもとカラダcondiTion｜神戸市垂水区舞子</div>
+    <div class="logo">{% if service == 'hoken' %}保険診療のご予約{% elif service == 'online' %}オンラインカウンセリング整体{% else %}きしもとカラダ整体{% endif %}</div>
+    <div class="subtitle">{% if service == 'online' %}きしもとカラダcondiTion｜Google Meetでご自宅から{% else %}きしもとカラダcondiTion｜神戸市垂水区舞子{% endif %}</div>
   </div>
 </header>
 
@@ -73,6 +73,10 @@
         {% if service == 'hoken' %}
         ※ 施術時間は約30分です<br>
         ※ 受付：月・水・木・金・土 11:00〜21:30
+        {% elif service == 'online' %}
+        ※ 30分・税込3,300円（前払い制）<br>
+        ※ 受付：火・日 12:00〜22:00／月・水〜土 21:00〜22:00<br>
+        ※ Google Meetを使ったオンラインでのカウンセリング・セルフケア指導です
         {% else %}
         ※ 施術時間は約45分です<br>
         ※ 定休日：日曜・火曜
@@ -126,6 +130,18 @@
           <dt>ご要望</dt><dd id="confirm-note"></dd>
         </div>
       </dl>
+      {% if service == 'online' %}
+      <div style="background:#fdf6ec;border:1.5px solid #e8cfa0;border-radius:10px;padding:14px;font-size:13px;margin-bottom:14px">
+        <p style="font-weight:700;margin-bottom:6px">オンラインカウンセリング整体のご案内</p>
+        <p style="margin-bottom:4px">・料金：<strong>30分 税込3,300円（前払い制）</strong></p>
+        <p style="margin-bottom:4px">・予約確定後に表示・メール記載されるお支払いリンク（クレジットカード決済）から、ご予約日までにお支払いください。</p>
+        <p style="margin-bottom:4px">・当日のGoogle Meet参加リンクは確認メールでお届けします。</p>
+        <p style="margin-bottom:10px">・<strong>キャンセルは自由ですが、キャンセルによるご返金はいたしかねます。</strong></p>
+        <label style="display:flex;align-items:center;gap:8px;font-weight:700;cursor:pointer">
+          <input type="checkbox" id="agree-policy" style="width:18px;height:18px"> 上記の内容に同意します
+        </label>
+      </div>
+      {% endif %}
       <p style="font-size:13px;color:var(--muted);margin-bottom:16px">
         上記の内容でよろしければ「予約を確定する」を押してください。
       </p>
@@ -140,7 +156,7 @@
     <div class="card" style="text-align:center;padding:30px 20px">
       <div class="success-icon">✅</div>
       <div class="success-title">ご予約が確定しました！</div>
-      <div class="success-sub">確認のご連絡をいたします</div>
+      <div class="success-sub">{% if service == 'online' %}続けてお支払いをお願いします{% else %}確認のご連絡をいたします{% endif %}</div>
       <dl class="confirm-box" style="text-align:left">
         <div class="confirm-row"><dt>日時</dt><dd id="done-datetime"></dd></div>
         <div class="confirm-row"><dt>お名前</dt><dd id="done-name"></dd></div>
@@ -149,6 +165,17 @@
       <p style="font-size:13px;color:var(--muted);margin-top:12px;margin-bottom:20px">
         ご予約番号: <strong id="done-id"></strong>
       </p>
+      {% if service == 'online' %}
+      {% if stripe_link %}
+      <a class="btn btn-primary" href="{{ stripe_link }}" target="_blank" rel="noopener"
+         style="display:block;text-decoration:none;margin-bottom:10px">💳 お支払いへ進む（税込3,300円）</a>
+      {% endif %}
+      <div style="background:#f0f7f4;border-radius:10px;padding:12px;font-size:13px;text-align:left;margin-bottom:16px">
+        <p style="margin-bottom:4px">・お支払いリンクは確認メールにも記載しています。<strong>ご予約日までに</strong>お支払いください。</p>
+        <p style="margin-bottom:4px">・当日のGoogle Meet参加リンクは確認メールをご覧ください。</p>
+        <p>・キャンセルは自由ですが、キャンセルによるご返金はいたしかねます。</p>
+      </div>
+      {% endif %}
       <button class="btn btn-outline" onclick="resetAll()">別の日程を予約する</button>
     </div>
     <div class="card" style="font-size:13px;color:var(--muted)">

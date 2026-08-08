@@ -104,7 +104,13 @@
         <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;font-size:14px;font-weight:600;cursor:pointer;padding:8px;border:1.5px solid var(--border);border-radius:8px">
           <input type="radio" name="service" value="hoken" style="accent-color:var(--primary)" onchange="onServiceChange()"> 保険（月水木金土）
         </label>
+        <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;font-size:14px;font-weight:600;cursor:pointer;padding:8px;border:1.5px solid var(--border);border-radius:8px">
+          <input type="radio" name="service" value="online" style="accent-color:var(--primary)" onchange="onServiceChange()"> オンライン
+        </label>
       </div>
+      <p id="online-hours-hint" style="font-size:11px;color:var(--muted);margin-top:6px;display:none">
+        オンラインの受付：火・日 12:00〜22:00／月・水〜土 21:00〜22:00（21:00より前の枠は火・日のみ登録されます）
+      </p>
     </div>
 
     <div style="display:flex;gap:8px;margin-bottom:16px">
