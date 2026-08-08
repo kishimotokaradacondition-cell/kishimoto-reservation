@@ -80,6 +80,12 @@ ONLINE_CANCEL_POLICY = "キャンセルは自由ですが、キャンセルに�
 # 3,300円のPayment LinkのURLを設定する。未設定時はメール・画面に案内文のみ表示）
 STRIPE_PAYMENT_LINK_URL = (getattr(_cfg, "STRIPE_PAYMENT_LINK_URL", "") if _cfg else "") \
     or os.environ.get("STRIPE_PAYMENT_LINK_URL", "")
+# Stripe Webhookの署名シークレット（whsec_...）。
+# Stripeダッシュボード → 開発者 → Webhook でエンドポイント
+# https://＜このアプリのURL＞/api/stripe/webhook を登録すると発行される。
+# 設定すると、入金完了が予約に自動記録され、オーナーへ入金確認メールが届く。
+STRIPE_WEBHOOK_SECRET = (getattr(_cfg, "STRIPE_WEBHOOK_SECRET", "") if _cfg else "") \
+    or os.environ.get("STRIPE_WEBHOOK_SECRET", "")
 # 21:00より前の枠を開けられる曜日（火=1・日=6。それ以外は21:00〜のみ）
 ONLINE_FULLDAY_WEEKDAYS = (1, 6)
 
@@ -120,7 +126,21 @@ def _make_body(res_id, customer_name, customer_phone, customer_note,
 """
 
 
-def _online_customer_sections(meet_url=""):
+def _stripe_payment_url(res_id=None):
+    """Stripe決済リンクのURLを返す。
+
+    予約番号を client_reference_id として付けることで、Stripe Webhook経由で
+    「どの予約への入金か」を自動で突き合わせられるようにする。
+    """
+    if not STRIPE_PAYMENT_LINK_URL:
+        return ""
+    if not res_id:
+        return STRIPE_PAYMENT_LINK_URL
+    sep = "&" if "?" in STRIPE_PAYMENT_LINK_URL else "?"
+    return f"{STRIPE_PAYMENT_LINK_URL}{sep}client_reference_id=res-{res_id}"
+
+
+def _online_customer_sections(meet_url="", res_id=None):
     """オンラインカウンセリング整体のお客様向けメールに追記する案内文"""
     if meet_url:
         meet_part = (
@@ -139,7 +159,7 @@ def _online_customer_sections(meet_url=""):
             "【お支払い（前払い制）】\n"
             f"料金：{ONLINE_PRICE_LABEL}\n"
             "下記のリンクから、ご予約日までにお支払いをお願いいたします。\n"
-            f"{STRIPE_PAYMENT_LINK_URL}\n"
+            f"{_stripe_payment_url(res_id)}\n"
         )
     else:
         pay_part = (
@@ -311,7 +331,7 @@ def _send_email(res_id, customer_name, customer_phone, customer_email,
             try:
                 customer_body = f"{customer_name} 様\n\nご予約が確定しました。\n\n" + body
                 if service == "online":
-                    customer_body += _online_customer_sections(meet_url)
+                    customer_body += _online_customer_sections(meet_url, res_id)
                 _send_one(
                     customer_email,
                     f"【ご予約確定】{label} {date_str} {time_str}〜",
@@ -461,6 +481,15 @@ def init_db():
         # オンライン枠用: Google MeetのURLを保存する列
         try:
             conn.execute("ALTER TABLE reservations ADD COLUMN meet_url TEXT")
+        except Exception:
+            pass
+        # オンライン枠用: 入金状態（unpaid/paid）と入金日時
+        try:
+            conn.execute("ALTER TABLE reservations ADD COLUMN payment_status TEXT")
+        except Exception:
+            pass
+        try:
+            conn.execute("ALTER TABLE reservations ADD COLUMN paid_at TEXT")
         except Exception:
             pass
         # 既存DBに service 列がない場合は追加（整体=seitai / 保険=hoken）
@@ -677,7 +706,7 @@ def list_reservations():
     with get_db() as conn:
         rows = conn.execute("""
             SELECT r.id, r.slot_id, r.customer_name, r.customer_phone, r.customer_note,
-                   r.status, r.created_at, r.meet_url,
+                   r.status, r.created_at, r.meet_url, r.payment_status, r.paid_at,
                    s.date, s.time, s.duration, s.service
             FROM reservations r
             JOIN slots s ON r.slot_id = s.id
@@ -744,6 +773,156 @@ def link_stats():
         "recent": {r["link_key"]: r["cnt"] for r in recent},
         "daily":  [dict(r) for r in daily],
     })
+
+
+# ── Stripe Webhook（入金確認） ────────────────────────────
+
+def _verify_stripe_signature(payload, sig_header, secret, tolerance=300):
+    """Stripe-Signatureヘッダーを検証する（stripeライブラリ不要の実装）。
+
+    署名方式: HMAC-SHA256("{タイムスタンプ}.{リクエスト本文}", シークレット)
+    https://docs.stripe.com/webhooks#verify-manually
+    """
+    import hmac
+    import hashlib
+    import time
+    timestamp = None
+    candidates = []
+    for item in (sig_header or "").split(","):
+        k, _, v = item.strip().partition("=")
+        if k == "t":
+            timestamp = v
+        elif k == "v1":
+            candidates.append(v)
+    if not timestamp or not candidates:
+        return False
+    try:
+        if abs(time.time() - int(timestamp)) > tolerance:
+            return False
+    except ValueError:
+        return False
+    signed = f"{timestamp}.".encode("utf-8") + payload
+    expected = hmac.new(secret.encode("utf-8"), signed, hashlib.sha256).hexdigest()
+    return any(hmac.compare_digest(expected, c) for c in candidates)
+
+
+def _send_payment_email(res_id, customer_name, date_str, time_str, amount, payer_email):
+    """オーナーへ入金確認メールを送信（別スレッド実行）"""
+    if not (GMAIL_APP_PASSWORD or SENDGRID_API_KEY) or not NOTIFY_EMAIL:
+        return
+    amount_str = f"{amount:,}円" if isinstance(amount, int) else "（金額不明）"
+    try:
+        if res_id:
+            subject = f"【入金確認】No.{res_id} {customer_name}様（オンラインカウンセリング整体）"
+            body = (
+                f"オンラインカウンセリング整体のお支払いが完了しました。\n\n"
+                f"予約番号   : No.{res_id}\n"
+                f"お名前     : {customer_name} 様\n"
+                f"予約日時   : {date_str} {time_str}〜\n"
+                f"金額       : {amount_str}\n"
+                f"支払メール : {payer_email or '（不明）'}\n\n"
+                f"管理画面の予約一覧でも「入金済」になっています。\n\n"
+                f"きしもとカラダcondiTion 予約システム"
+            )
+        else:
+            subject = "【入金確認・要チェック】予約と紐づけできない入金がありました"
+            body = (
+                f"Stripeで入金がありましたが、どの予約への入金か自動で特定できませんでした。\n\n"
+                f"金額       : {amount_str}\n"
+                f"支払メール : {payer_email or '（不明）'}\n\n"
+                f"Stripeダッシュボードの「支払い」で内容を確認し、\n"
+                f"該当のお客様の予約と手動で突き合わせてください。\n\n"
+                f"きしもとカラダcondiTion 予約システム"
+            )
+        _send_one(NOTIFY_EMAIL, subject, body)
+        print(f"[stripe] 入金確認メール送信完了 → {NOTIFY_EMAIL} (No.{res_id or '不明'})")
+    except Exception as e:
+        print(f"[stripe] 入金確認メール失敗: {e}")
+
+
+@app.route("/api/stripe/webhook", methods=["POST"])
+def stripe_webhook():
+    """Stripeからの入金通知（checkout.session.completed）を受け取り、
+    予約に入金済みを記録してオーナーへ通知する。
+
+    予約との突き合わせは
+    ①決済リンクに付けた client_reference_id（res-予約番号）
+    ②支払い時のメールアドレス＝予約時のメールアドレス
+    の順で行う。どちらでも特定できない場合も「要チェック」として通知する。
+    """
+    payload = request.get_data()
+    sig_header = request.headers.get("Stripe-Signature", "")
+    if STRIPE_WEBHOOK_SECRET:
+        if not _verify_stripe_signature(payload, sig_header, STRIPE_WEBHOOK_SECRET):
+            return jsonify({"error": "invalid signature"}), 400
+    try:
+        event = json.loads(payload)
+    except Exception:
+        return jsonify({"error": "invalid payload"}), 400
+
+    if event.get("type") != "checkout.session.completed":
+        return jsonify({"ok": True, "ignored": event.get("type")})
+
+    obj = (event.get("data") or {}).get("object") or {}
+    # カード決済は即時に paid になる。銀行振込等の遅延決済は完了イベント側で拾う
+    if obj.get("payment_status") not in ("paid", "no_payment_required"):
+        return jsonify({"ok": True, "ignored": "not paid yet"})
+
+    ref = obj.get("client_reference_id") or ""
+    payer_email = ((obj.get("customer_details") or {}).get("email") or "").strip()
+    amount = obj.get("amount_total")  # JPYはそのまま円額
+
+    res = None
+    with get_db() as conn:
+        # ① client_reference_id（res-予約番号）で特定
+        if ref.startswith("res-"):
+            try:
+                rid = int(ref[4:])
+                res = conn.execute("""
+                    SELECT r.id, r.customer_name, r.payment_status, s.date, s.time
+                    FROM reservations r JOIN slots s ON r.slot_id = s.id
+                    WHERE r.id=?
+                """, (rid,)).fetchone()
+            except ValueError:
+                pass
+        # ② メールアドレスで、入金前のオンライン予約（直近の日程）を探す
+        if res is None and payer_email:
+            res = conn.execute("""
+                SELECT r.id, r.customer_name, r.payment_status, s.date, s.time
+                FROM reservations r JOIN slots s ON r.slot_id = s.id
+                WHERE lower(r.customer_email) = lower(?)
+                  AND r.status = 'confirmed' AND s.service = 'online'
+                  AND (r.payment_status IS NULL OR r.payment_status != 'paid')
+                ORDER BY s.date, s.time LIMIT 1
+            """, (payer_email,)).fetchone()
+
+        if res and res["payment_status"] == "paid":
+            # Stripeは同じイベントを再送することがあるので二重処理しない
+            return jsonify({"ok": True, "skipped": "already paid"})
+
+        if res:
+            jst_now = (datetime.utcnow() + timedelta(hours=9)).strftime("%Y-%m-%d %H:%M:%S")
+            conn.execute("UPDATE reservations SET payment_status='paid', paid_at=? WHERE id=?",
+                         (jst_now, res["id"]))
+
+    if res:
+        d = date.fromisoformat(res["date"])
+        date_str = f"{d.year}年{d.month}月{d.day}日（{DOW_JA[d.weekday()]}）"
+        threading.Thread(
+            target=_send_payment_email,
+            args=(res["id"], res["customer_name"], date_str, res["time"][:5], amount, payer_email),
+            daemon=True,
+        ).start()
+        print(f"[stripe] 入金を記録 No.{res['id']} ({amount}円, {payer_email})")
+    else:
+        threading.Thread(
+            target=_send_payment_email,
+            args=(None, "", "", "", amount, payer_email),
+            daemon=True,
+        ).start()
+        print(f"[stripe] 予約と紐づけできない入金 ({amount}円, {payer_email})")
+
+    return jsonify({"ok": True, "matched": bool(res)})
 
 
 # ── 顧客向け API ──────────────────────────────────────────
@@ -825,7 +1004,10 @@ def create_reservation():
         )
         res_id = cur.lastrowid
 
-    slot_service = slot["service"] if "service" in slot.keys() else "seitai"
+        slot_service = slot["service"] if "service" in slot.keys() else "seitai"
+        # オンラインは前払い制なので「未入金」で開始（Stripe Webhookで入金済みに更新）
+        if slot_service == "online":
+            conn.execute("UPDATE reservations SET payment_status='unpaid' WHERE id=?", (res_id,))
 
     if slot_service == "online":
         # オンラインは順序が大事:
@@ -884,6 +1066,8 @@ def create_reservation():
         "time": slot["time"],
         "duration": slot["duration"],
         "customer_name": name,
+        # オンラインのみ: 予約番号つきの決済リンク（完了画面のボタンに使う）
+        "payment_url": _stripe_payment_url(res_id) if slot_service == "online" else "",
     })
 
 
