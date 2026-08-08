@@ -194,6 +194,12 @@ function goConfirm() {
 
 /* ── 予約送信 ─────────────────────────────────────── */
 async function submitReservation() {
+  // オンラインカウンセリング整体は前払い・キャンセル規定への同意が必要
+  const agree = document.getElementById("agree-policy");
+  if (agree && !agree.checked) {
+    toast("「上記の内容に同意します」にチェックを入れてください");
+    return;
+  }
   const btn = document.getElementById("submit-btn");
   btn.disabled = true;
   btn.textContent = "送信中...";

@@ -70,8 +70,56 @@ function createEvent_(d) {
     'ご要望: ' + (d.customer_note || '（なし）') + '\n' +
     'Web予約システムから自動作成';
 
+  // オンラインカウンセリング整体はGoogle Meetのリンク付きで予定を作り、
+  // 発行されたMeetのURLを予約システムに返す（確認メールに記載される）
+  if (d.service === 'online') {
+    try {
+      const meetUrl = createEventWithMeet_(title, description, start, end, d);
+      return json_({ ok: true, meet_url: meetUrl });
+    } catch (err) {
+      // Calendar API（拡張サービス）が未設定などで失敗した場合は
+      // Meetなしの通常予定を作成する（予約自体は落とさない）
+      const ev = cal.createEvent(title, start, end, { description: description });
+      return json_({ ok: true, event_id: ev.getId(), meet_url: '',
+                     meet_error: String(err) });
+    }
+  }
+
   const ev = cal.createEvent(title, start, end, { description: description });
   return json_({ ok: true, event_id: ev.getId() });
+}
+
+/**
+ * Google Meet付きの予定を作成してMeetのURLを返す。
+ *
+ * ※事前設定が必要: Apps Scriptエディタ左側の「サービス +」から
+ * 「Google Calendar API」を追加しておくこと（識別子: Calendar）。
+ * 追加していないとこの関数は失敗し、Meetなしの予定にフォールバックする。
+ */
+function createEventWithMeet_(title, description, start, end, d) {
+  const calId = CALENDAR_ID || 'primary';
+  const event = {
+    summary: title,
+    description: description,
+    start: { dateTime: start.toISOString() },
+    end:   { dateTime: end.toISOString() },
+    conferenceData: {
+      createRequest: {
+        requestId: 'reservation-' + d.reservation_id + '-' + Date.now(),
+        conferenceSolutionKey: { type: 'hangoutsMeet' },
+      },
+    },
+  };
+  // お客様のメールアドレスをゲストに追加すると、Googleからも
+  // Meetリンク入りの招待メールが届く（確認メールの保険になる）
+  if (d.customer_email) {
+    event.attendees = [{ email: d.customer_email }];
+  }
+  const created = Calendar.Events.insert(event, calId, {
+    conferenceDataVersion: 1,
+    sendUpdates: d.customer_email ? 'all' : 'none',
+  });
+  return created.hangoutLink || '';
 }
 
 function cancelEvent_(d) {
@@ -112,6 +160,31 @@ function testCreate() {
     time: '10:00',
     duration: 45,
     service_label: 'きしもとカラダ整体',
+  });
+  Logger.log(result.getContent());
+}
+
+/**
+ * オンラインカウンセリング整体（Google Meet付き）の動作テスト用。
+ * 実行前に「サービス +」から Google Calendar API を追加しておくこと。
+ * 実行するとログに meet_url が出ます。URLが空なら meet_error を確認。
+ * テスト後は カレンダーから「予約No.99998」の予定を削除してください。
+ */
+function testCreateOnline() {
+  const tomorrow = new Date(Date.now() + 24 * 3600 * 1000);
+  const y = tomorrow.getFullYear();
+  const m = ('0' + (tomorrow.getMonth() + 1)).slice(-2);
+  const day = ('0' + tomorrow.getDate()).slice(-2);
+  const result = createEvent_({
+    reservation_id: 99998,
+    customer_name: 'オンラインテスト',
+    customer_phone: '000-0000-0000',
+    customer_note: 'Meet連携テスト',
+    date: y + '-' + m + '-' + day,
+    time: '21:00',
+    duration: 30,
+    service: 'online',
+    service_label: 'オンラインカウンセリング整体',
   });
   Logger.log(result.getContent());
 }
