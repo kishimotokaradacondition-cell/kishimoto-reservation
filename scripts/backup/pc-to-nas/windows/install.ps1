@@ -69,7 +69,7 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host "✅ セットアップ完了！" -ForegroundColor Green
     Write-Host "   今後は毎日 $RunHour時$($RunMinute.ToString('00'))分 に自動でバックアップされます。"
     Write-Host "   （その時刻に電源が入っていなかった場合は、次の起動時に自動実行されます）"
-    Write-Host "   保存先: $NasRoot\$env:COMPUTERNAME"
+    Write-Host "   保存先: $NasRoot\PCバックアップ\$env:COMPUTERNAME"
     Write-Host "   ログ:   $AppDir\logs"
 } else {
     Write-Host ""

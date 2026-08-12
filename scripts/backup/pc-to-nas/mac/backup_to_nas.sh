@@ -14,6 +14,10 @@ set -u
 # NAS のバックアップ用共有フォルダ（smb:// で始まるアドレス）
 NAS_URL="smb://NAS/backup"
 
+# NAS が Mac 上でマウントされる場所（install.sh が自動で書き込みます。
+# 空のままの場合は NAS_URL の共有フォルダ名から自動で決めます）
+MOUNT_POINT=""
+
 # バックアップするフォルダの一覧（必要に応じて追加・削除OK）
 TARGETS=(
   "$HOME/Documents"
@@ -24,7 +28,9 @@ TARGETS=(
 
 LOG_FILE="$HOME/Library/Logs/kishimoto-nas-backup.log"
 SHARE_NAME="${NAS_URL##*/}"                 # smb://NAS/backup → backup
-MOUNT_POINT="/Volumes/$SHARE_NAME"
+if [ -z "$MOUNT_POINT" ]; then
+  MOUNT_POINT="/Volumes/$SHARE_NAME"
+fi
 PC_NAME="$(scutil --get ComputerName 2>/dev/null || hostname)"
 
 log() {
@@ -64,7 +70,9 @@ if [ ! -d "$MOUNT_POINT" ]; then
   notify_error "NAS（${NAS_URL}）に接続できません。NASの電源とネットワークを確認してください。"
 fi
 
-DEST="$MOUNT_POINT/$PC_NAME"
+# 共有フォルダ内の「PCバックアップ」フォルダにまとめて保存する
+# （NASを他の用途でも使っている場合に、既存のファイルと混ざらないように）
+DEST="$MOUNT_POINT/PCバックアップ/$PC_NAME"
 mkdir -p "$DEST" || notify_error "NAS上にフォルダを作成できません。共有フォルダの書き込み権限を確認してください。"
 
 HAD_ERROR=0

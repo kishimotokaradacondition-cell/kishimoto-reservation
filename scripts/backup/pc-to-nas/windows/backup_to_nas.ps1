@@ -69,8 +69,8 @@ if (-not (Test-Path $NasRoot)) {
     Fail "NAS（$NasRoot）に接続できません。"
 }
 
-# このPC専用のフォルダ（PC名）に保存する
-$Dest = Join-Path $NasRoot $env:COMPUTERNAME
+# 共有フォルダ内の「PCバックアップ」フォルダの中の、このPC専用のフォルダ（PC名）に保存する
+$Dest = Join-Path $NasRoot "PCバックアップ\$env:COMPUTERNAME"
 New-Item -ItemType Directory -Force -Path $Dest | Out-Null
 
 $hadError = $false
