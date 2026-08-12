@@ -51,7 +51,7 @@ rclone sync "$SRC" "$REMOTE" \
 
 RESULT=$?
 if [ $RESULT -ne 0 ]; then
-  log "エラー: rclone sync が失敗しました（コード: $RESULT）"
+  log "エラー: rclone sync が失敗しました（コード: ${RESULT}）"
   # NAS 上に失敗マーカーを残す（PCから見える場所なので気づける）
   echo "クラウドへのバックアップが失敗しています。日時: $(date '+%Y-%m-%d %H:%M')  詳細: $LOG_FILE" \
     > "$SRC/【要確認】クラウドバックアップ失敗.txt"

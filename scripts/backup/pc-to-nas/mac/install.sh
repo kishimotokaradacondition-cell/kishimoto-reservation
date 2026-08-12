@@ -28,9 +28,17 @@ if [ -z "$NAS_URL" ]; then
 fi
 
 case "$NAS_URL" in
-  smb://*) ;;
+  smb://*/*) ;;
+  smb://*)
+    echo ""
+    echo "⚠ 共有フォルダ名まで含めて入力してください。"
+    echo "  「smb://NASのアドレス/共有フォルダ名」の形です（例: smb://192.168.42.100/backup）"
+    echo "  共有フォルダ名は、Finder のサイドバーで NAS を選ぶと表示されるフォルダの名前です。"
+    exit 1 ;;
   *) echo "アドレスは smb:// で始めてください（例: smb://NAS/backup）"; exit 1 ;;
 esac
+# 末尾の / は取り除く
+NAS_URL="${NAS_URL%/}"
 
 echo "1/3 バックアップスクリプトを配置しています..."
 mkdir -p "$INSTALL_DIR"

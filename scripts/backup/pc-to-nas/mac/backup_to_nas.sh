@@ -46,6 +46,12 @@ fi
 
 log "===== バックアップ開始 ====="
 
+# アドレスが「smb://NAS/共有フォルダ名」の形になっているか確認
+case "$NAS_URL" in
+  smb://*/*) ;;
+  *) notify_error "NASのアドレス（${NAS_URL}）に共有フォルダ名が含まれていません。install.sh をもう一度実行してください。" ;;
+esac
+
 # NAS がマウントされていなければ自動でマウントする
 # （初回に Finder で接続して「パスワードをキーチェーンに保存」してあれば、パスワード入力なしで繋がります）
 if [ ! -d "$MOUNT_POINT" ]; then
@@ -55,7 +61,7 @@ if [ ! -d "$MOUNT_POINT" ]; then
 fi
 
 if [ ! -d "$MOUNT_POINT" ]; then
-  notify_error "NAS（$NAS_URL）に接続できません。NASの電源とネットワークを確認してください。"
+  notify_error "NAS（${NAS_URL}）に接続できません。NASの電源とネットワークを確認してください。"
 fi
 
 DEST="$MOUNT_POINT/$PC_NAME"
@@ -65,7 +71,7 @@ HAD_ERROR=0
 
 for SRC in "${TARGETS[@]}"; do
   if [ ! -d "$SRC" ]; then
-    log "スキップ: $SRC（フォルダがありません）"
+    log "スキップ: ${SRC}（フォルダがありません）"
     continue
   fi
   NAME="$(basename "$SRC")"
@@ -87,7 +93,7 @@ for SRC in "${TARGETS[@]}"; do
   # rsync の 23/24 は「一部のファイルが使用中などでコピーできなかった」程度なので成功扱い
   if [ $RESULT -ne 0 ] && [ $RESULT -ne 23 ] && [ $RESULT -ne 24 ]; then
     HAD_ERROR=1
-    log "エラー: $NAME のコピーに失敗（rsync コード: $RESULT）"
+    log "エラー: $NAME のコピーに失敗（rsync コード: ${RESULT}）"
   else
     log "完了: $NAME"
   fi
@@ -98,7 +104,7 @@ if [ $HAD_ERROR -ne 0 ]; then
 fi
 
 # NAS 側に「いつ成功したか」を残す
-echo "最終バックアップ成功: $(date '+%Y-%m-%d %H:%M:%S')（$PC_NAME）" > "$DEST/_最終バックアップ日時.txt"
+echo "最終バックアップ成功: $(date '+%Y-%m-%d %H:%M:%S')（${PC_NAME}）" > "$DEST/_最終バックアップ日時.txt"
 
 log "===== バックアップ完了 ====="
 exit 0
