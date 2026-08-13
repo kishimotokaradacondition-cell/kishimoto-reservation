@@ -139,6 +139,10 @@ if bash "$INSTALL_DIR/backup_to_nas.sh"; then
   echo "   今後は毎日 ${RUN_HOUR}:$(printf '%02d' $RUN_MINUTE) に自動でバックアップされます。"
   echo "   保存先: NAS の「PCバックアップ」フォルダ > このMacの名前のフォルダ"
   echo "   ログ:   ~/Library/Logs/kishimoto-nas-backup.log"
+  echo ""
+  echo "【重要・1回だけ】自動実行が書類などを読めるように、次の設定をしてください:"
+  echo "   システム設定 → プライバシーとセキュリティ → フルディスクアクセス → 「＋」"
+  echo "   → Command+Shift+G を押して /bin/bash と入力 → 「bash」を追加してオンにする"
 else
   echo ""
   echo "⚠ 1回目のバックアップでエラーが出ました（毎日の自動実行の登録は済んでいます）。"
