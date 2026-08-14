@@ -33,6 +33,10 @@ while IFS= read -r line; do
   mp="${rest%% (*}"                   # /Volumes/共有フォルダ名
   hostshare="${dev#//}"
   hostshare="${hostshare#*@}"         # user@ を取り除く
+  # mount の出力では日本語の共有フォルダ名が %E5%B2%B8 のような符号になるため、元の文字に戻す
+  case "$hostshare" in
+    *%*) hostshare="$(printf '%b' "${hostshare//\%/\\x}")" ;;
+  esac
   URLS[$N]="smb://$hostshare"
   POINTS[$N]="$mp"
   N=$((N + 1))
