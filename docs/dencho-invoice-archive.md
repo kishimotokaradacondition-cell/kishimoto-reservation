@@ -199,7 +199,18 @@ Web明細型の場合は、明細ページからPDFをダウンロードし、
 - スキャンした**紙の領収書**はこの仕組みの対象外です（電帳法上は「スキャナ保存」という別の区分で、
   紙の原本を残しておけば従来どおりの扱いで問題ありません）。
 
+## iCloud にある請求書について
+
+この仕組みが扱うのは **Gmail と Googleドライブ** の分です。
+iCloud Drive の中にある請求書は、Mac 上で動かす別のスクリプトで集めます。
+手順は `docs/dencho-icloud-invoice.md` を参照してください。
+
+そちらで集めたファイルは同じ保存フォルダに入るので、
+Google Apps Script で **`indexArchiveFolders`** を実行すれば同じ索引簿にまとまります。
+（`indexArchiveFolders` は、保存フォルダに手作業で入れたファイルも拾ってくれます。）
+
 ## 関連ファイル
 
 - `gas/dencho-invoice-archive.gs` … 本体のスクリプト
+- `docs/dencho-icloud-invoice.md` … iCloud にある請求書を集める手順（Mac 上で実行）
 - `docs/dencho-jimu-shori-kitei.md` … 備え付けが必要な事務処理規程のひな形

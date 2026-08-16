@@ -11,6 +11,8 @@
  *   setup()            … 保存フォルダ・索引簿・Gmailラベルを作る（最初に1回）
  *   backfillAll()      … 過去のメールをさかのぼって保存する（最初に1回）
  *   importDriveFolders() … 既存のDriveフォルダにある請求書PDFを取り込む（最初に1回）
+ *   indexArchiveFolders() … 保存フォルダに置かれたファイルを索引簿に載せる
+ *                           （Macから取り込んだiCloudの請求書もこれで索引簿に反映されます）
  *   dailyArchive()     … 新しく届いた請求書を毎日自動保存する（トリガーで自動実行）
  *   installTrigger()   … dailyArchive を毎朝6時に自動実行する設定（最初に1回）
  *
@@ -217,6 +219,79 @@ function importDriveFolders() {
   const report = buildReport_('既存Driveフォルダの取り込み', results, ctx);
   Logger.log(report);
   return report;
+}
+
+/**
+ * 保存フォルダの中にあって索引簿にまだ載っていないファイルを拾って追記する。
+ *
+ * Macの `scripts/dencho/icloud_invoice_collect.sh` が iCloud から集めたファイルや、
+ * 手作業でフォルダに入れたファイルを索引簿に反映させるために使います。
+ * ファイル名が「日付_取引先_金額」の形になっていれば、そこから読み取ります。
+ */
+function indexArchiveFolders() {
+  const ctx = buildContext_();
+  const results = [];
+
+  ['受領', '発行'].forEach(function (side) {
+    const it = ctx.root.getFoldersByName(side);
+    if (!it.hasNext()) return;
+    const sideFolder = it.next();
+
+    const years = sideFolder.getFolders();
+    while (years.hasNext()) {
+      const yearFolder = years.next();
+      const files = yearFolder.getFiles();
+
+      while (files.hasNext()) {
+        const file = files.next();
+        const key = 'drive:' + file.getId();
+        if (ctx.processedKeys[key]) continue;
+
+        const parsed = parseArchiveFileName_(file.getName());
+        results.push({
+          key: key,
+          date: parsed.date || file.getLastUpdated(),
+          vendor: parsed.vendor || '（未設定）',
+          amount: parsed.amount,
+          currency: parsed.currency,
+          side: side,
+          docType: guessDocType_(file.getName()),
+          source: 'フォルダ',
+          party: '',
+          subject: file.getName(),
+          gmailUrl: '',
+          fileName: file.getName(),
+          fileUrl: file.getUrl(),
+          needsReview: !parsed.amount || !parsed.vendor || !parsed.date,
+          note: 'フォルダに置かれていたファイルを索引簿に追加',
+        });
+        ctx.processedKeys[key] = true;
+      }
+    }
+  });
+
+  appendToIndex_(ctx, results);
+  const report = buildReport_('保存フォルダの取り込み', results, ctx);
+  Logger.log(report);
+  return report;
+}
+
+/** 「20260801_やわらぎ_11000円_請求書.pdf」から日付・取引先・金額を読み取る */
+function parseArchiveFileName_(name) {
+  const m = String(name).match(/^(\d{8})_([^_]+)_(?:(\d+)(円|USD)|金額未確認)_?/);
+  if (!m) return { date: null, vendor: '', amount: null, currency: '' };
+
+  const y = Number(m[1].substring(0, 4));
+  const mo = Number(m[1].substring(4, 6));
+  const d = Number(m[1].substring(6, 8));
+  const date = (mo >= 1 && mo <= 12 && d >= 1 && d <= 31) ? new Date(y, mo - 1, d) : null;
+
+  return {
+    date: date,
+    vendor: m[2],
+    amount: m[3] ? Number(m[3]) : null,
+    currency: m[3] ? (m[4] === 'USD' ? 'USD' : 'JPY') : '',
+  };
 }
 
 // ───────────────────────────────────────────────────────────
