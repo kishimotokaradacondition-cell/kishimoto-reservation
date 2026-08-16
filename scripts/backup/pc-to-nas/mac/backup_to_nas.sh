@@ -95,12 +95,26 @@ for SRC in "${TARGETS[@]}"; do
   #   -a       : フォルダ構成・更新日時ごとコピー
   #   --update : NAS側が同じか新しいファイルはスキップ（差分コピー）
   #   --delete は付けない = Macで消してもNASには残る（誤削除対策）
+  #
+  # 写真アプリ等の「ライブラリ」（.photoslibrary など）は、アプリが常に
+  # 中のデータベースを読み書きしているため、そのままコピーすると必ず失敗します。
+  # また、この形式はファイル単位でコピーしても正しく復元できないため除外します。
+  # （写真は iCloud写真、または「写真」アプリの書き出し機能でバックアップしてください）
   rsync -a --update \
     --exclude '.DS_Store' \
     --exclude 'Icon?' \
     --exclude '.Trash*' \
     --exclude '.localized' \
     --exclude 'node_modules' \
+    --exclude '*.photoslibrary' \
+    --exclude '*.aplibrary' \
+    --exclude '*.photolibrary' \
+    --exclude '*.imovielibrary' \
+    --exclude '*.theater' \
+    --exclude '*.tvlibrary' \
+    --exclude '*.musiclibrary' \
+    --exclude '*.logicx' \
+    --exclude '*.sparsebundle' \
     "$SRC/" "$DEST/$NAME/" >> "$LOG_FILE" 2>&1
 
   RESULT=$?
