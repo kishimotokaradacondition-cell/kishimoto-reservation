@@ -171,13 +171,12 @@ rm ~/Library/LaunchAgents/com.kishimoto.dencho-icloud-collect.plist
   CSV の備考に判定理由を書いているので、違っていたら手で直してください。
 - **Spotlight の索引が無効だと、PDFの中身での検索ができません。**
   その場合もファイル名での検索は動くので、取りこぼしはファイル名次第になります。
-- **PDFの読み取りには macOS 標準の Python が必要です。** 使えない環境では
-  ファイル名からの読み取りだけになります（`install.sh` が実行時に判定して表示します）。
 
 ## 関連ファイル
 
 - `scripts/dencho/icloud_invoice_collect.sh` … 収集スクリプト本体
-- `scripts/dencho/pdf_meta.py` … PDFから日付・取引先・金額を読み取る補助
+- `scripts/dencho/pdf_meta.js` … PDFから日付・取引先・金額を読み取る補助
+  （macOS標準の osascript で動くため、追加インストールは不要です）
 - `scripts/dencho/install.sh` … 毎日20:45の自動実行を登録
 - `docs/dencho-invoice-archive.md` … Gmail側の自動保存（GAS）の手順
 - `docs/dencho-jimu-shori-kitei.md` … 備え付けが必要な事務処理規程のひな形

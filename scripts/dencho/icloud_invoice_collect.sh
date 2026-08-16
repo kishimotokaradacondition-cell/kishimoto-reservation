@@ -33,7 +33,7 @@ STATE_DIR="$HOME/Library/Application Support/kishimoto-dencho"
 STATE_FILE="$STATE_DIR/collected.tsv"
 LOG_FILE="$HOME/Library/Logs/dencho-icloud-collect.log"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PDF_META="$SCRIPT_DIR/pdf_meta.py"
+PDF_META="$SCRIPT_DIR/pdf_meta.js"
 
 # 探すファイルの拡張子（大文字小文字は区別しません）
 EXTENSIONS="pdf jpg jpeg png heic"
@@ -96,7 +96,9 @@ if [ -z "$DEST_ROOT" ]; then
   DEST_ROOT="$ICLOUD/$ARCHIVE_NAME"
   log "Googleドライブ（パソコン版）が見つからないため、iCloud内に保存します: $DEST_ROOT"
 else
-  log "保存先: $DEST_ROOT（Googleドライブへ自動同期されます）"
+  # 注意: 変数の直後に全角文字を続けると Mac 標準の bash 3.2 が
+  #       変数名を誤認識して止まるため、必ず ${} で囲むこと
+  log "保存先: ${DEST_ROOT} (Googleドライブへ自動同期されます)"
 fi
 
 REPORT="$DEST_ROOT/iCloud取り込み一覧.csv"
@@ -229,10 +231,13 @@ mdfind -onlyin "$ICLOUD" "$MDQUERY" 2>/dev/null | sort -u > "$SPOTLIGHT_HITS"
 log "Spotlight検索: $(wc -l < "$SPOTLIGHT_HITS" | tr -d ' ')件ヒット"
 
 # ② Spotlightの索引が効いていない場合に備えて、ファイル名でも直接探す
-FIND_EXPR=()
+# Mac標準の bash 3.2 は set -u と空配列の組み合わせに弱いため、
+# 配列が空の状態を作らないよう最初の1件で初期化する
+FIND_FIRST=1
 for ext in $EXTENSIONS; do
-  if [ ${#FIND_EXPR[@]} -eq 0 ]; then
+  if [ $FIND_FIRST -eq 1 ]; then
     FIND_EXPR=(-iname "*.$ext")
+    FIND_FIRST=0
   else
     FIND_EXPR+=(-o -iname "*.$ext")
   fi
@@ -310,7 +315,7 @@ while IFS= read -r raw; do
   # ── PDFの中身を下読みする
   meta_date=""; meta_vendor=""; meta_amount=""; meta_currency=""; meta_type=""
   if [ "$ext" = "pdf" ] && [ -f "$PDF_META" ]; then
-    if meta="$(/usr/bin/python3 "$PDF_META" "$path" 2>/dev/null)" && [ -n "$meta" ]; then
+    if meta="$(osascript -l JavaScript "$PDF_META" "$path" 2>/dev/null)" && [ -n "$meta" ]; then
       meta_date="$(printf '%s' "$meta" | cut -f1)"
       meta_vendor="$(printf '%s' "$meta" | cut -f2)"
       meta_amount="$(printf '%s' "$meta" | cut -f3)"

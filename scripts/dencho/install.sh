@@ -18,15 +18,15 @@ PLIST_PATH="$HOME/Library/LaunchAgents/$PLIST_LABEL.plist"
 echo "1/4 スクリプトを配置しています..."
 mkdir -p "$INSTALL_DIR"
 cp "$SCRIPT_DIR/icloud_invoice_collect.sh" "$INSTALL_DIR/icloud_invoice_collect.sh"
-cp "$SCRIPT_DIR/pdf_meta.py" "$INSTALL_DIR/pdf_meta.py"
+cp "$SCRIPT_DIR/pdf_meta.js" "$INSTALL_DIR/pdf_meta.js"
+rm -f "$INSTALL_DIR/pdf_meta.py"   # 旧版の残りがあれば片付ける
 chmod +x "$INSTALL_DIR/icloud_invoice_collect.sh"
 
 echo "2/4 PDFの読み取り機能が使えるか確認しています..."
-if /usr/bin/python3 -c 'import Quartz' >/dev/null 2>&1; then
+if osascript -l JavaScript -e "ObjC.import('Quartz'); ''" >/dev/null 2>&1; then
   echo "    → 使えます（PDFの中身から日付・金額・取引先を読み取ります）"
 else
   echo "    → 使えません。ファイル名からの読み取りのみになります。"
-  echo "      ターミナルで xcode-select --install を実行すると使えるようになる場合があります。"
 fi
 
 echo "3/4 毎日20:45の自動実行を登録しています..."
