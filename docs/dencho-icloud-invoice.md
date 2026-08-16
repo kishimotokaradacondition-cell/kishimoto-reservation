@@ -131,6 +131,30 @@ bash install.sh
 金額や取引先を直したときは、索引簿の該当行も合わせて直してください
 （ファイル名は変えなくても、索引簿が正しければ検索要件は満たせます）。
 
+## 取り込みすぎたファイルを片付ける
+
+初回の取り込みは「取りこぼすより多めに拾う」設定のため、
+給与明細・助成金の申請様式・会計マニュアルなど、電帳法の保存対象ではない
+ファイルも混ざります（実際の初回実行では549件中およそ半分がこれでした）。
+
+`cleanup_noise.sh` で、それらを保存フォルダから取り除けます。
+
+```
+cd ~/Downloads/dencho
+bash cleanup_noise.sh            ← まず何が移動されるか一覧で確認（移動しません）
+bash cleanup_noise.sh --apply    ← 実際に「_対象外」フォルダへ移動
+```
+
+- **削除ではなく「_対象外」フォルダへの移動**です。中身を見て問題なければ、
+  Finder で `_対象外` フォルダごとゴミ箱に入れてください。
+- 戻したいときは `bash cleanup_noise.sh --undo` で元の場所に戻せます。
+- **請求書・領収・支払明細・利用明細・納品書・見積書** を名前に含むファイルは、
+  除外条件に当てはまっても動かしません（例:「弥生会計25領収書」は「会計」で消えず残ります）。
+- iCloud にある元のファイルには一切触れません。
+
+2回目以降の取り込みでは、スクリプト側の `EXCLUDE_KEYWORDS` と `EXCLUDE_DIRS` で
+同じものが再び入らないようにしてあるので、この片付けは基本的に初回だけです。
+
 ## よくある質問
 
 **Q. 何度実行しても大丈夫？**
@@ -177,6 +201,7 @@ rm ~/Library/LaunchAgents/com.kishimoto.dencho-icloud-collect.plist
 - `scripts/dencho/icloud_invoice_collect.sh` … 収集スクリプト本体
 - `scripts/dencho/pdf_meta.js` … PDFから日付・取引先・金額を読み取る補助
   （macOS標準の osascript で動くため、追加インストールは不要です）
+- `scripts/dencho/cleanup_noise.sh` … 取引書類ではないファイルを「_対象外」へ退避
 - `scripts/dencho/install.sh` … 毎日20:45の自動実行を登録
 - `docs/dencho-invoice-archive.md` … Gmail側の自動保存（GAS）の手順
 - `docs/dencho-jimu-shori-kitei.md` … 備え付けが必要な事務処理規程のひな形
