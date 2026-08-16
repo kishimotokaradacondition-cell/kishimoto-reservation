@@ -41,8 +41,21 @@ EXTENSIONS="pdf jpg jpeg png heic"
 # 請求書・領収書らしさを示す言葉（ファイル名・フォルダ名・PDFの中身）
 KEYWORDS="請求書 請求 御請求 領収書 領収 レシート 明細書 利用明細 invoice receipt"
 
-# 検索から除外するフォルダ名（この仕組み自身が作ったコピーを拾い直さないため）
-EXCLUDE_DIRS="$ARCHIVE_NAME GoogleDriveバックアップ .Trash"
+# 検索から除外するフォルダ名。
+# 前半はこの仕組み自身が作ったコピーを拾い直さないため。
+# 後半は初回の取り込みでノイズの発生源だったフォルダ（助成金の申請書類、
+# 会計マニュアル、給与記録など。いずれも取引先とやり取りした書類ではない）。
+EXCLUDE_DIRS="$ARCHIVE_NAME GoogleDriveバックアップ .Trash 1-助成金 3-馬場先生 2-給与管理保存"
+
+# ファイル名にこれらが含まれるものは取り込まない。
+# 「請求書」等のキーワードや Spotlight の全文検索で引っかかってしまうが、
+# 取引書類ではないもの（社内資料・申請様式・勉強用の教材など）を弾く。
+# ただし下の KEEP_KEYWORDS が優先されるので、「〇〇の請求書」は残る。
+EXCLUDE_KEYWORDS="給与明細 賞与明細 助成金 支給申請 支給要件 申立書 実績報告 事業実績 様式 要領 リスキリング 決算 申告書 残高一覧 推移補助 試算表 法人税 マニュアル 説明書 手引 契約書 規則 規程 協定 日計レポート 統計ナビ メール分析 問題集 協会情報"
+
+# 除外キーワードに当てはまっても、これらを含むファイルは取り込む（保存漏れを防ぐ）。
+# 例:「弥生会計25領収書」は「会計」ではなく領収書なので残す。
+KEEP_KEYWORDS="請求書 御請求 領収 レシート 支払明細 利用明細 納品書 見積書"
 
 # ───────────────────────────────────────────────
 # 引数
@@ -295,6 +308,20 @@ while IFS= read -r raw; do
   done
   if [ $looks_like -eq 0 ] && ! grep -qxF "$raw" "$SPOTLIGHT_HITS"; then
     continue
+  fi
+
+  # 取引書類ではないもの（社内資料・申請様式など）を弾く。
+  # ただし請求書・領収書とはっきり分かる名前なら残す。
+  keep=0
+  for kw in $KEEP_KEYWORDS; do
+    case "$name" in *"$kw"*) keep=1; break ;; esac
+  done
+  if [ $keep -eq 0 ]; then
+    excluded=0
+    for kw in $EXCLUDE_KEYWORDS; do
+      case "$name" in *"$kw"*) excluded=1; break ;; esac
+    done
+    [ $excluded -eq 1 ] && continue
   fi
 
   # 取り込み済みなら飛ばす
