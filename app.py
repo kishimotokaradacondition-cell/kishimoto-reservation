@@ -527,6 +527,14 @@ def init_db():
 init_db()  # gunicorn起動時も含め、常にDB初期化を実行
 
 
+# ── ダイエット・食事管理（InBody連動） ──────────────────────
+
+from diet import diet_bp, init_diet_db  # noqa: E402
+
+init_diet_db()
+app.register_blueprint(diet_bp)
+
+
 # ── 認証 ─────────────────────────────────────────────────
 
 def login_required(f):
