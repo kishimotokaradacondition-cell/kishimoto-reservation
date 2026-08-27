@@ -556,6 +556,12 @@ def online_booking_page():
                            stripe_link=STRIPE_PAYMENT_LINK_URL)
 
 
+@app.route("/pronation")
+def pronation_page():
+    """回内足 分析・提案アプリ(評価→3タイプ分類→患者様向け配布資料の作成)"""
+    return render_template("pronation.html")
+
+
 @app.route("/ig")
 @app.route("/links")
 def instagram_links_page():

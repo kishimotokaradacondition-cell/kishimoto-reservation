@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>回内足 分析・提案アプリ | きしもとカラダcondiTion</title>
+<link rel="stylesheet" href="/static/css/pronation.css">
+</head>
+<body>
+
+<header class="site-header no-print">
+  <div>
+    <div class="logo">回内足 分析・提案アプリ</div>
+    <div class="subtitle">きしもとカラダcondiTion｜評価 → 分析 → 提案資料の作成</div>
+  </div>
+  <button class="btn ghost" id="btnRecords">保存済みの記録</button>
+</header>
+
+<div class="container no-print" id="app">
+
+  <!-- ステップ表示 -->
+  <div class="steps">
+    <div class="step active" data-step="1"><div class="step-num">1</div>基本情報</div>
+    <div class="step-arrow">›</div>
+    <div class="step" data-step="2"><div class="step-num">2</div>除外チェック</div>
+    <div class="step-arrow">›</div>
+    <div class="step" data-step="3"><div class="step-num">3</div>評価入力</div>
+    <div class="step-arrow">›</div>
+    <div class="step" data-step="4"><div class="step-num">4</div>分析・資料</div>
+  </div>
+
+  <!-- ═══ STEP1 基本情報 ═══ -->
+  <section class="card" id="sec1">
+    <h2>1. 基本情報</h2>
+    <div class="grid2">
+      <label>お名前 <input type="text" id="pName" placeholder="例: 舞子 太郎"></label>
+      <label>年齢 <input type="number" id="pAge" min="3" max="99" placeholder="例: 12"></label>
+      <label>性別(任意)
+        <select id="pSex">
+          <option value="">選択しない</option><option>男性</option><option>女性</option><option>その他</option>
+        </select>
+      </label>
+      <label>スポーツ・部活
+        <select id="pSport"></select>
+      </label>
+      <label>競技名(自由記載) <input type="text" id="pSportName" placeholder="例: サッカー(クラブチーム)"></label>
+      <label>週の練習時間(時間) <input type="number" id="pHours" min="0" max="60" step="0.5" placeholder="例: 8"></label>
+    </div>
+
+    <h3>痛みがある部位(複数選択可)</h3>
+    <div class="chips" id="painChips"></div>
+
+    <div class="grid3">
+      <label>痛み NRS 安静時 (0〜10) <input type="number" id="nrsRest" min="0" max="10" value="0"></label>
+      <label>痛み NRS 歩行時 (0〜10) <input type="number" id="nrsWalk" min="0" max="10" value="0"></label>
+      <label>痛み NRS 運動時 (0〜10) <input type="number" id="nrsSport" min="0" max="10" value="0"></label>
+    </div>
+
+    <h3>生活・習慣</h3>
+    <div class="grid2">
+      <label class="check"><input type="checkbox" id="hSingle">1つの種目に専門化している(掛け持ちなし)</label>
+      <label class="check"><input type="checkbox" id="hWsit">W座りの癖がある</label>
+      <label class="check"><input type="checkbox" id="hBarefoot">裸足で遊ぶ機会がほとんどない</label>
+      <label class="check"><input type="checkbox" id="hShoes">靴のサイズを半年以上確認していない/踵の芯が柔らかい</label>
+    </div>
+    <div class="nav"><button class="btn primary" id="to2">次へ(除外チェック)</button></div>
+  </section>
+
+  <!-- ═══ STEP2 レッドフラグ ═══ -->
+  <section class="card hidden" id="sec2">
+    <h2>2. 除外チェック(レッドフラグ)</h2>
+    <p class="note">1つでも該当する場合は運動プログラムを開始せず、整形外科への紹介をおすすめする判定になります。</p>
+    <div id="redflagList"></div>
+    <div class="nav">
+      <button class="btn" id="back1">戻る</button>
+      <button class="btn primary" id="to3">次へ(評価入力)</button>
+    </div>
+  </section>
+
+  <!-- ═══ STEP3 評価入力 ═══ -->
+  <section class="card hidden" id="sec3">
+    <h2>3. 評価入力</h2>
+
+    <h3>FPI-6(足部姿勢指数) <span class="mini">各項目 -2(回外)〜+2(回内)。合計 +6以上で回内</span></h3>
+    <table class="evalTable" id="fpiTable">
+      <thead><tr><th>項目</th><th>左</th><th>右</th></tr></thead>
+      <tbody></tbody>
+      <tfoot><tr><th>合計</th><th id="fpiL">0</th><th id="fpiR">0</th></tr></tfoot>
+    </table>
+
+    <h3>足部・全身の評価</h3>
+    <div class="grid2">
+      <label>舟状骨落下 左(mm) <input type="number" id="navL" min="0" max="30" step="0.5" placeholder="正常5〜9"></label>
+      <label>舟状骨落下 右(mm) <input type="number" id="navR" min="0" max="30" step="0.5" placeholder="正常5〜9"></label>
+      <label>膝壁テスト 左(cm) <input type="number" id="kwL" min="0" max="25" step="0.5" placeholder="10未満で制限"></label>
+      <label>膝壁テスト 右(cm) <input type="number" id="kwR" min="0" max="25" step="0.5" placeholder="10未満で制限"></label>
+      <label>Beightonスコア (0〜9) <input type="number" id="beighton" min="0" max="9" placeholder="小児は6以上で全身弛緩"></label>
+      <label>片脚立位 左(秒) <input type="number" id="slsL" min="0" max="180" placeholder="12歳以上は120秒"></label>
+      <label>片脚立位 右(秒) <input type="number" id="slsR" min="0" max="180"></label>
+    </div>
+
+    <h3>片脚スクワット(5回・視覚評価)</h3>
+    <div class="grid2">
+      <label>左脚
+        <select id="sqL">
+          <option value="">未実施</option>
+          <option value="good">good(膝が第2趾の上・安定)</option>
+          <option value="fair">fair(ときどき膝が内へ・軽い動揺)</option>
+          <option value="poor">poor(膝内入り・骨盤落下・体幹動揺)</option>
+        </select>
+      </label>
+      <label>右脚
+        <select id="sqR">
+          <option value="">未実施</option>
+          <option value="good">good(膝が第2趾の上・安定)</option>
+          <option value="fair">fair(ときどき膝が内へ・軽い動揺)</option>
+          <option value="poor">poor(膝内入り・骨盤落下・体幹動揺)</option>
+        </select>
+      </label>
+    </div>
+
+    <label class="check big"><input type="checkbox" id="flexArch" checked>つま先立ち・母趾を反らすとアーチが出る(柔軟性)</label>
+
+    <div class="nav">
+      <button class="btn" id="back2">戻る</button>
+      <button class="btn primary" id="analyze">分析して提案資料を作成</button>
+    </div>
+  </section>
+
+  <!-- ═══ STEP4 結果(施術者ビュー) ═══ -->
+  <section class="card hidden" id="sec4">
+    <h2>4. 分析結果(院内ビュー)</h2>
+    <div id="resultPro"></div>
+    <div class="nav">
+      <button class="btn" id="back3">評価に戻る</button>
+      <button class="btn" id="save">記録を保存</button>
+      <button class="btn primary" id="print">患者様用資料を印刷(A4)</button>
+    </div>
+  </section>
+
+  <!-- ═══ 保存記録一覧 ═══ -->
+  <section class="card hidden" id="secRecords">
+    <h2>保存済みの記録</h2>
+    <p class="note">この端末(ブラウザ)にのみ保存されます。再評価(4・8・12週)の値もここから追記できます。</p>
+    <div id="recordsList"></div>
+    <div class="nav"><button class="btn" id="closeRecords">閉じる</button></div>
+  </section>
+</div>
+
+<!-- ═══ 患者様配布資料(印刷領域) ═══ -->
+<div id="handout" class="print-only"></div>
+
+<script src="/static/js/pronation-data.js"></script>
+<script src="/static/js/pronation.js"></script>
+</body>
+</html>
