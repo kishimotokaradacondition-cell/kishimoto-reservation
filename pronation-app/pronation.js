@@ -372,6 +372,70 @@
 
   $("print").onclick = () => window.print();
 
+  /* ---------- PDF保存(フォルダ接続時はフォルダへ、未接続時はダウンロード) ---------- */
+  const pdfSanitize = s => (s || "").replace(/[\\/:*?"<>|]+/g, "_").trim();
+
+  async function writePdfToFolder(blob) {
+    // ファイル名はASCIIのみ(患者名はPDF紙面に記載)。記録ファイルと同じ方針
+    const t = new Date();
+    const hm = `${String(t.getHours()).padStart(2, "0")}${String(t.getMinutes()).padStart(2, "0")}${String(t.getSeconds()).padStart(2, "0")}`;
+    const name = `handout_${current.patient.date}_${hm}.pdf`;
+    const fh = await dirHandle.getFileHandle(name, { create: true });
+    const w = await fh.createWritable();
+    await w.write(blob);
+    await w.close();
+    return name;
+  }
+
+  $("pdfSave").onclick = async () => {
+    if (!current) return;
+    if (!(window.jspdf && window.html2canvas)) {
+      alert("PDF部品(vendorフォルダ)が見つかりません。「患者様用資料を印刷」からPDF保存してください。");
+      return;
+    }
+    const btn = $("pdfSave");
+    const orig = btn.textContent;
+    btn.disabled = true; btn.textContent = "PDF作成中…";
+    const el = $("handout");
+    try {
+      el.classList.add("pdf-render");
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ unit: "mm", format: "a4" });
+      const CW = 186, CH = 273;   // 余白12mmを除いた印字領域(mm)
+      let firstPage = true;
+      for (const pg of el.querySelectorAll(".h-page")) {
+        const canvas = await window.html2canvas(pg, { scale: 2, backgroundColor: "#ffffff" });
+        const pagePx = Math.floor(canvas.width * CH / CW);   // A4の1ページに収まる高さ(px)
+        for (let y = 0; y < canvas.height; y += pagePx) {
+          const slice = document.createElement("canvas");
+          slice.width = canvas.width;
+          slice.height = Math.min(pagePx, canvas.height - y);
+          slice.getContext("2d").drawImage(canvas, 0, y, canvas.width, slice.height, 0, 0, canvas.width, slice.height);
+          if (!firstPage) pdf.addPage();
+          firstPage = false;
+          pdf.addImage(slice.toDataURL("image/jpeg", 0.92), "JPEG", 12, 12, CW, slice.height * CW / canvas.width);
+        }
+      }
+      const blob = pdf.output("blob");
+      const base = pdfSanitize(`資料_${current.patient.name}_${current.patient.date}`) || `handout_${current.patient.date}`;
+      if (dirHandle) {
+        const name = await writePdfToFolder(blob);
+        alert(`フォルダ「${dirHandle.name || "選択済み"}」にPDFを保存しました: ${name}\n(${current.patient.name}様の資料)`);
+      } else {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = base + ".pdf";
+        a.click();
+        URL.revokeObjectURL(a.href);
+      }
+    } catch (e) {
+      alert("PDFの作成に失敗しました: " + e.message);
+    } finally {
+      el.classList.remove("pdf-render");
+      btn.disabled = false; btn.textContent = orig;
+    }
+  };
+
   /* ---------- 保存先(フォルダ / ブラウザ内) ----------
    * フォルダ保存: File System Access API(Chrome/Edge)。アプリの
    * フォルダ等を一度選ぶと、記録が1件=1つのJSONファイルとして

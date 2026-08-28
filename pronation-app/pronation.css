@@ -111,6 +111,10 @@ label.check.big { margin-top: 14px; font-size: .92rem; }
   @page { size: A4; margin: 12mm; }
 }
 
+/* PDF生成時のオフスクリーン描画(html2canvas用) */
+#handout.pdf-render { display: block; position: absolute; left: -10000px; top: 0;
+  width: 703px; max-width: none; background: #fff; }
+
 /* 配布資料のスタイル(画面プレビューでも印刷でも共通) */
 #handout { font-size: 10.5pt; color: #1e2a32; max-width: 186mm; margin: 0 auto; }
 #handout .h-page { page-break-after: always; padding-bottom: 4mm; }
