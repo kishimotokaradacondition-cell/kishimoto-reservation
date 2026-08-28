@@ -29,6 +29,18 @@
     <div class="step" data-step="4"><div class="step-num">4</div>分析・資料</div>
   </div>
 
+  <!-- 保存先(フォルダ接続) -->
+  <div class="storagebar" id="storageBar">
+    <span id="storeStatus">保存先: このブラウザ内</span>
+    <span class="sb-btns">
+      <button class="btn small" id="pickFolder">保存フォルダを選択</button>
+      <button class="btn small hidden" id="reconnectFolder">前回のフォルダに再接続</button>
+      <button class="btn small" id="exportAll">バックアップ書き出し</button>
+      <button class="btn small" id="importBtn">バックアップ読み込み</button>
+      <input type="file" id="importFile" accept=".json,application/json" multiple hidden>
+    </span>
+  </div>
+
   <!-- ═══ STEP1 基本情報 ═══ -->
   <section class="card" id="sec1">
     <h2>1. 基本情報</h2>

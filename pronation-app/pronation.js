@@ -372,21 +372,203 @@
 
   $("print").onclick = () => window.print();
 
-  /* ---------- 記録の保存・再評価 ---------- */
-  function loadRecords() { try { return JSON.parse(localStorage.getItem(LS_KEY)) || []; } catch { return []; } }
-  function saveRecords(recs) { localStorage.setItem(LS_KEY, JSON.stringify(recs)); }
+  /* ---------- 保存先(フォルダ / ブラウザ内) ----------
+   * フォルダ保存: File System Access API(Chrome/Edge)。アプリの
+   * フォルダ等を一度選ぶと、記録が1件=1つのJSONファイルとして
+   * そのフォルダに保存され、次回以降も同じフォルダから一覧できる。
+   * 未対応ブラウザ・フォルダ未選択時は従来どおり localStorage。 */
+  const hasFS = "showDirectoryPicker" in window;
+  let dirHandle = null;      // 接続済みフォルダ
+  let pendingHandle = null;  // 前回使ったが再許可待ちのフォルダ
 
-  $("save").onclick = () => {
-    if (!current) return;
-    const recs = loadRecords();
-    recs.unshift({ id: Date.now(), patient: current.patient, result: current.result });
-    saveRecords(recs);
-    alert("保存しました(この端末のブラウザ内)。「保存済みの記録」から再評価を追記できます。");
+  function idb() {
+    return new Promise((res, rej) => {
+      const rq = indexedDB.open("pronationFS", 1);
+      rq.onupgradeneeded = () => rq.result.createObjectStore("handles");
+      rq.onsuccess = () => res(rq.result);
+      rq.onerror = () => rej(rq.error);
+    });
+  }
+  async function idbSet(k, v) {
+    const db = await idb();
+    return new Promise((res, rej) => {
+      const tx = db.transaction("handles", "readwrite");
+      tx.objectStore("handles").put(v, k);
+      tx.oncomplete = res; tx.onerror = () => rej(tx.error);
+    });
+  }
+  async function idbGet(k) {
+    const db = await idb();
+    return new Promise((res, rej) => {
+      const rq = db.transaction("handles").objectStore("handles").get(k);
+      rq.onsuccess = () => res(rq.result); rq.onerror = () => rej(rq.error);
+    });
+  }
+
+  // ファイル名はASCIIのみ(日本語名は文字コード・同期ツール起因の事故を避け、JSON内に保持)
+  const recFileName = rec => `record_${rec.patient.date}_${rec.id}.json`;
+
+  async function folderFindName(id) {
+    for await (const [name, h] of dirHandle.entries()) {
+      if (h.kind === "file" && name.endsWith(`_${id}.json`)) return name;
+    }
+    return null;
+  }
+  async function folderRecords() {
+    const recs = [];
+    for await (const [name, h] of dirHandle.entries()) {
+      if (h.kind === "file" && name.startsWith("record_") && name.endsWith(".json")) {
+        try {
+          const j = JSON.parse(await (await h.getFile()).text());
+          if (j && j.id && j.patient && j.result) recs.push(j);
+        } catch { /* 壊れたファイルは一覧から除外 */ }
+      }
+    }
+    recs.sort((a, b) => b.id - a.id);
+    return recs;
+  }
+  async function folderWrite(rec) {
+    const fname = (await folderFindName(rec.id)) || recFileName(rec);
+    const fh = await dirHandle.getFileHandle(fname, { create: true });
+    const w = await fh.createWritable();
+    await w.write(JSON.stringify(rec, null, 2));
+    await w.close();
+  }
+  async function folderDelete(id) {
+    const fname = await folderFindName(id);
+    if (fname) await dirHandle.removeEntry(fname);
+  }
+
+  const localLoad = () => { try { return JSON.parse(localStorage.getItem(LS_KEY)) || []; } catch { return []; } };
+  const localSave = recs => localStorage.setItem(LS_KEY, JSON.stringify(recs));
+
+  async function loadRecords() { return dirHandle ? folderRecords() : localLoad(); }
+  async function saveRecord(rec) {
+    if (dirHandle) { await folderWrite(rec); return; }
+    const recs = localLoad(); recs.unshift(rec); localSave(recs);
+  }
+  async function updateRecord(rec) {
+    if (dirHandle) { await folderWrite(rec); return; }
+    localSave(localLoad().map(x => (x.id === rec.id ? rec : x)));
+  }
+  async function deleteRecord(id) {
+    if (dirHandle) { await folderDelete(id); return; }
+    localSave(localLoad().filter(x => x.id !== id));
+  }
+
+  async function migrateLocalToFolder() {
+    const locals = localLoad();
+    if (!locals.length) return 0;
+    const existing = new Set((await folderRecords()).map(r => r.id));
+    let n = 0;
+    for (const rec of locals) if (!existing.has(rec.id)) { await folderWrite(rec); n++; }
+    return n;
+  }
+
+  function updateStorageBar() {
+    const st = $("storeStatus");
+    if (dirHandle) {
+      st.innerHTML = `保存先: <span class="connected">フォルダ「${dirHandle.name || "選択済み"}」に自動保存中</span>`;
+      $("pickFolder").textContent = "保存フォルダを変更";
+      $("reconnectFolder").classList.add("hidden");
+    } else if (pendingHandle) {
+      st.textContent = "保存先: このブラウザ内(前回のフォルダは未接続)";
+      $("reconnectFolder").classList.remove("hidden");
+    } else if (hasFS) {
+      st.textContent = "保存先: このブラウザ内(フォルダ未選択)";
+    } else {
+      st.textContent = "保存先: このブラウザ内(このブラウザはフォルダ保存に未対応。バックアップ書き出しをご利用ください)";
+      $("pickFolder").disabled = true;
+    }
+  }
+
+  async function connectFolder(handle) {
+    dirHandle = handle; pendingHandle = null;
+    try { await idbSet("dir", handle); } catch { /* file://等で保存できなくても動作は継続 */ }
+    const moved = await migrateLocalToFolder();
+    updateStorageBar();
+    if (moved > 0) alert(`ブラウザ内に保存されていた${moved}件の記録をフォルダにコピーしました。今後の記録はフォルダに保存されます。`);
+  }
+
+  $("pickFolder").onclick = async () => {
+    if (!hasFS) return;
+    try {
+      const handle = await window.showDirectoryPicker({ mode: "readwrite" });
+      await connectFolder(handle);
+    } catch (e) {
+      if (e && e.name !== "AbortError") alert("フォルダを開けませんでした: " + e.message);
+    }
+  };
+  $("reconnectFolder").onclick = async () => {
+    if (!pendingHandle) return;
+    try {
+      const p = pendingHandle.requestPermission ? await pendingHandle.requestPermission({ mode: "readwrite" }) : "granted";
+      if (p === "granted") await connectFolder(pendingHandle);
+    } catch (e) { alert("再接続できませんでした。「保存フォルダを選択」からやり直してください。"); }
   };
 
-  function renderRecords() {
-    const recs = loadRecords();
+  (async function initStore() {
+    if (hasFS) {
+      try {
+        const h = await idbGet("dir");
+        if (h) {
+          const p = h.queryPermission ? await h.queryPermission({ mode: "readwrite" }) : "granted";
+          if (p === "granted") dirHandle = h;
+          else pendingHandle = h;   // クリック(ユーザー操作)で再許可を取る
+        }
+      } catch { /* 復元できなければブラウザ内保存で続行 */ }
+    }
+    updateStorageBar();
+  })();
+
+  /* ---------- バックアップ(全ブラウザ共通) ---------- */
+  $("exportAll").onclick = async () => {
+    const recs = await loadRecords();
+    if (!recs.length) { alert("保存された記録がありません。"); return; }
+    const blob = new Blob([JSON.stringify(recs, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `回内足記録バックアップ_${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+  $("importBtn").onclick = () => $("importFile").click();
+  $("importFile").onchange = async e => {
+    let added = 0, skipped = 0;
+    const existing = new Set((await loadRecords()).map(r => r.id));
+    for (const f of e.target.files) {
+      try {
+        const j = JSON.parse(await f.text());
+        const list = Array.isArray(j) ? j : [j];
+        for (const rec of list) {
+          if (rec && rec.id && rec.patient && rec.result) {
+            if (existing.has(rec.id)) { skipped++; continue; }
+            await saveRecord(rec); existing.add(rec.id); added++;
+          }
+        }
+      } catch { skipped++; }
+    }
+    e.target.value = "";
+    alert(`読み込み完了: ${added}件追加${skipped ? `・${skipped}件は重複/読込不可のためスキップ` : ""}`);
+    if (!$("secRecords").classList.contains("hidden")) renderRecords();
+  };
+
+  /* ---------- 記録の保存・再評価 ---------- */
+  $("save").onclick = async () => {
+    if (!current) return;
+    try {
+      await saveRecord({ id: Date.now(), patient: current.patient, result: current.result });
+      alert(dirHandle
+        ? `フォルダ「${dirHandle.name || "選択済み"}」に保存しました。「保存済みの記録」から再評価を追記できます。`
+        : "保存しました(この端末のブラウザ内)。フォルダにファイルとして残す場合は上部の「保存フォルダを選択」をご利用ください。");
+    } catch (e) { alert("保存に失敗しました: " + e.message); }
+  };
+
+  async function renderRecords() {
     const wrap = $("recordsList");
+    let recs;
+    try { recs = await loadRecords(); }
+    catch (e) { wrap.innerHTML = `<p class="note">記録を読み込めませんでした: ${e.message}</p>`; return; }
     if (!recs.length) { wrap.innerHTML = `<p class="note">保存された記録はまだありません。</p>`; return; }
     wrap.innerHTML = "";
     recs.forEach(rec => {
@@ -423,20 +605,19 @@
         renderPro(p, r); renderHandout(p, r);
         $("secRecords").classList.add("hidden"); show(4);
       };
-      div.querySelector('[data-act="del"]').onclick = () => {
+      div.querySelector('[data-act="del"]').onclick = async () => {
         if (!confirm(`${p.name}様の記録を削除しますか?`)) return;
-        saveRecords(loadRecords().filter(x => x.id !== rec.id)); renderRecords();
+        try { await deleteRecord(rec.id); } catch (e) { alert("削除に失敗しました: " + e.message); }
+        renderRecords();
       };
-      div.querySelector('[data-act="addEv"]').onclick = () => {
+      div.querySelector('[data-act="addEv"]').onclick = async () => {
         const g = f => { const el = div.querySelector(`[data-f="${f}"]`); return el.value === "" ? null : Number(el.value); };
-        const recs2 = loadRecords();
-        const target = recs2.find(x => x.id === rec.id);
-        if (!target) return;
-        (target.patient.reevals = target.patient.reevals || []).push({
+        (rec.patient.reevals = rec.patient.reevals || []).push({
           date: new Date().toISOString().slice(0, 10),
           week: g("week"), nav: g("nav"), nrs: g("nrs"), hw: g("hw")
         });
-        saveRecords(recs2); renderRecords();
+        try { await updateRecord(rec); } catch (e) { alert("保存に失敗しました: " + e.message); }
+        renderRecords();
       };
       wrap.appendChild(div);
     });
