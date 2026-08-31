@@ -1073,12 +1073,21 @@ $("#btnNew").onclick=()=>{
   $('[data-k="basic.date"]').value=new Date().toISOString().slice(0,10);
   updateFpi();updateBmi();updateRfLive();go(0);
 };
-$("#btnExport").onclick=()=>{
+$("#btnExport").onclick=async()=>{
   const rec=collect();
-  const blob=new Blob([JSON.stringify({app:"footlab",version:1,records:[rec]},null,2)],{type:"application/json"});
+  const json=JSON.stringify({app:"footlab",version:1,records:[rec]},null,2);
+  const fname=`足部分析_${rec.basic?.name||"無記名"}_${rec.basic?.date||""}.json`;
+  // claude.ai アーティファクト上ではdownloads機能、ローカルでは通常のダウンロード
+  const dl=window.claude?.use?await window.claude.use("downloads").catch(()=>null):null;
+  if(dl){
+    try{await dl.save({filename:fname,data:json});flash("保存しました");}
+    catch(e){if(e?.code!=="declined")alert("書き出せませんでした："+(e?.message||e));}
+    return;
+  }
+  const blob=new Blob([json],{type:"application/json"});
   const a=document.createElement("a");
   a.href=URL.createObjectURL(blob);
-  a.download=`足部分析_${rec.basic?.name||"無記名"}_${rec.basic?.date||""}.json`;
+  a.download=fname;
   a.click();URL.revokeObjectURL(a.href);
 };
 $("#fileImport").addEventListener("change",e=>{
