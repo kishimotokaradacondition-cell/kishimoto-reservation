@@ -433,6 +433,7 @@ footer.appfoot{max-width:1080px;margin:24px auto 40px;padding:0 20px;color:var(-
 <section class="step" data-step="7">
   <h2>⑧ 資料出力（2枚）</h2>
   <p class="lead">「治療家用」（院内カルテ・全データと根拠）と「患者様用」（お渡し用・わかりやすい言葉と宿題シート）の2枚を作成します。印刷またはPDF保存してお使いください。</p>
+  <div class="hint">claude.ai上でお使いの場合：印刷ボタンを押すと<b>印刷用ファイルが保存</b>されます（保存の確認が出たら「保存」を押してください）。保存されたファイルを開くと印刷画面が表示され、そこから紙への印刷もPDF保存もできます。</div>
   <div class="inline" style="margin-bottom:16px">
     <button class="btn primary" id="btnPrintT">🖨 治療家用を印刷</button>
     <button class="btn primary" id="btnPrintP">🖨 患者様用を印刷</button>
@@ -1030,9 +1031,47 @@ function renderSheets(){
   $("#printT").innerHTML=t;$("#printP").innerHTML=p;
 }
 $("#btnRefreshSheets").onclick=renderSheets;
-$("#btnPrintT").onclick=()=>{renderSheets();document.body.classList.add("print-t");document.body.classList.remove("print-p");window.print();};
-$("#btnPrintP").onclick=()=>{renderSheets();document.body.classList.add("print-p");document.body.classList.remove("print-t");window.print();};
-$("#btnPrintBoth").onclick=()=>{renderSheets();document.body.classList.remove("print-p","print-t");window.print();};
+/* 印刷：claude.ai上ではサンドボックス制限でwindow.print()が動かないため、
+   印刷用HTMLファイルを保存してもらい、開いた先で印刷ダイアログを出す。
+   ローカル（index.htmlを直接開いた場合）は従来どおりその場で印刷。 */
+function buildPrintDoc(mode){
+  const css=[...document.querySelectorAll("style")].map(s=>s.textContent).join("\n");
+  let body="";
+  if(mode!=="p")body+=`<div class="sheet">${$("#printT").innerHTML}</div>`;
+  if(mode!=="t")body+=`<div class="sheet sheet-p">${$("#printP").innerHTML}</div>`;
+  return `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><title>足部機能分析シート 印刷用</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Zen+Maru+Gothic:wght@500;700&display=swap">
+<style>${css}
+body{background:#fff}
+.sheet{margin:16px auto;box-shadow:0 1px 8px rgba(0,0,0,.2)}</style></head>
+<body onload="setTimeout(()=>window.print(),400)">
+<div class="noprint" style="text-align:center;padding:12px;font-family:sans-serif;background:#EFF4F2">
+<button onclick="window.print()" style="padding:10px 28px;font-size:16px;cursor:pointer;background:#0E7368;color:#fff;border:none;border-radius:8px">🖨 印刷する</button>
+<div style="color:#55666D;font-size:13px;margin-top:6px">印刷画面が自動で出ない場合は上のボタンを押してください。印刷画面で「PDFに保存」を選べばPDFにもできます。</div>
+</div>${body}</body></html>`;
+}
+async function doPrint(mode){
+  renderSheets();
+  if(window.claude&&window.claude.use){
+    const dl=await window.claude.use("downloads").catch(()=>null);
+    if(dl){
+      const rec=collect();
+      const label=mode==="t"?"治療家用":mode==="p"?"患者様用":"2枚セット";
+      const fname=`印刷用_${label}_${rec.basic?.name||"無記名"}_${rec.basic?.date||""}.html`;
+      try{
+        await dl.save({filename:fname,data:buildPrintDoc(mode)});
+        flash("印刷用ファイルを保存しました。開くと印刷画面が表示されます");
+      }catch(e){if(e?.code!=="declined")alert("保存できませんでした："+(e?.message||e));}
+      return;
+    }
+  }
+  document.body.classList.toggle("print-t",mode==="t");
+  document.body.classList.toggle("print-p",mode==="p");
+  window.print();
+}
+$("#btnPrintT").onclick=()=>doPrint("t");
+$("#btnPrintP").onclick=()=>doPrint("p");
+$("#btnPrintBoth").onclick=()=>doPrint("both");
 window.addEventListener("afterprint",()=>document.body.classList.remove("print-p","print-t"));
 
 /* ================================================================
