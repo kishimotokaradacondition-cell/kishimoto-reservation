@@ -218,6 +218,40 @@ def _notify_gcal(action, res_id, customer_name="", customer_phone="", customer_n
         return ""
 
 
+def _mail_configured():
+    """いずれかのメール送信経路が使えるか（GAS Webhook / SendGrid / Gmail SMTP）"""
+    return bool(GCAL_WEBHOOK_URL or SENDGRID_API_KEY or GMAIL_APP_PASSWORD)
+
+
+def _send_via_gas(to_addr, subject, body):
+    """Google Apps Script Webhook経由でメールを1通送信する。
+
+    送信元はGASを動かしているGoogleアカウント
+    （kishimoto.karada.condition@gmail.com）になる。
+    失敗時は例外を投げ、ログ出力は呼び出し元に任せる。
+    """
+    payload = json.dumps({
+        "token": GCAL_WEBHOOK_TOKEN,
+        "action": "send_mail",
+        "to": to_addr,
+        "subject": subject,
+        "body": body,
+    }, ensure_ascii=False).encode("utf-8")
+    req = urllib.request.Request(
+        GCAL_WEBHOOK_URL,
+        data=payload,
+        headers={"Content-Type": "application/json"},
+    )
+    with urllib.request.urlopen(req, timeout=20) as resp:
+        raw = resp.read().decode("utf-8", errors="replace")
+    try:
+        result = json.loads(raw or "{}")
+    except Exception:
+        raise RuntimeError(f"GASメール応答が不正: {raw[:200]}")
+    if not result.get("ok"):
+        raise RuntimeError(f"GASメール送信エラー: {result.get('error', raw[:200])}")
+
+
 def _ics_escape(text):
     """iCalendarのテキスト値エスケープ"""
     return (text or "").replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,").replace("\n", "\\n")
@@ -267,7 +301,14 @@ def _build_ics(res_id, customer_name, customer_phone, customer_note,
 
 
 def _send_one(to_addr, subject, body, ics=None):
-    """1通送信（SendGrid API優先・未設定時はGmail SMTP）。ics指定時はカレンダー招待を添付"""
+    """1通送信。GAS Webhook → SendGrid API → Gmail SMTP の順で使える経路を選ぶ。
+
+    GAS経路では ics 添付は使わない（GCAL_WEBHOOK_URL があるときは
+    ICS自体を生成しない運用のため、実害はない）。
+    """
+    if GCAL_WEBHOOK_URL:
+        _send_via_gas(to_addr, subject, body)
+        return
     if SENDGRID_API_KEY:
         sg_payload = {
             "personalizations": [{"to": [{"email": to_addr}]}],
@@ -314,7 +355,7 @@ def _send_email(res_id, customer_name, customer_phone, customer_email,
                 customer_note, slot_date, slot_time, slot_duration, service="seitai",
                 meet_url=""):
     """予約確定メールを2通送信（別スレッド実行・失敗してもサーバーは止めない）"""
-    if not (GMAIL_APP_PASSWORD or SENDGRID_API_KEY):
+    if not _mail_configured():
         return
 
     try:
@@ -413,7 +454,7 @@ def _send_gchat():
 
 def _send_alert_emails(customer_name, date_str, time_str, service="seitai"):
     """予約アラートを4名のメールアドレスに送信（別スレッド実行）"""
-    if not ALERT_EMAILS or not (GMAIL_APP_PASSWORD or SENDGRID_API_KEY):
+    if not ALERT_EMAILS or not _mail_configured():
         return
     label = service_label(service)
     subject = f"【予約が入りました】{label}"
@@ -808,7 +849,7 @@ def _verify_stripe_signature(payload, sig_header, secret, tolerance=300):
 
 def _send_payment_email(res_id, customer_name, date_str, time_str, amount, payer_email):
     """オーナーへ入金確認メールを送信（別スレッド実行）"""
-    if not (GMAIL_APP_PASSWORD or SENDGRID_API_KEY) or not NOTIFY_EMAIL:
+    if not _mail_configured() or not NOTIFY_EMAIL:
         return
     amount_str = f"{amount:,}円" if isinstance(amount, int) else "（金額不明）"
     try:

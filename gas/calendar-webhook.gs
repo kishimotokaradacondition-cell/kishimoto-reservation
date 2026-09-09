@@ -26,6 +26,7 @@ function doPost(e) {
 
     if (data.action === 'create') return createEvent_(data);
     if (data.action === 'cancel') return cancelEvent_(data);
+    if (data.action === 'send_mail') return sendMail_(data);
     return json_({ ok: false, error: 'unknown action: ' + data.action });
   } catch (err) {
     return json_({ ok: false, error: String(err) });
@@ -134,6 +135,26 @@ function cancelEvent_(d) {
   return json_({ ok: true, deleted: targets.length });
 }
 
+/**
+ * 予約システムからの依頼でメールを1通送信する。
+ * 送信元はこのスクリプトを実行しているGoogleアカウント
+ * （kishimoto.karada.condition@gmail.com）。
+ * Gmailの送信上限（個人アカウントは1日あたり約100通）に達すると
+ * 失敗するので、大量送信には使わないこと。
+ */
+function sendMail_(d) {
+  if (!d.to || !d.subject) {
+    return json_({ ok: false, error: 'to and subject are required' });
+  }
+  MailApp.sendEmail({
+    to: String(d.to),
+    subject: String(d.subject),
+    body: String(d.body || ''),
+    name: 'きしもとカラダcondiTion',
+  });
+  return json_({ ok: true, remaining_quota: MailApp.getRemainingDailyQuota() });
+}
+
 function json_(obj) {
   return ContentService
     .createTextOutput(JSON.stringify(obj))
@@ -170,6 +191,20 @@ function testCreate() {
  * 実行するとログに meet_url が出ます。URLが空なら meet_error を確認。
  * テスト後は カレンダーから「予約No.99998」の予定を削除してください。
  */
+/**
+ * メール送信の動作テスト用: 実行すると自分宛（このGoogleアカウント）に
+ * テストメールが1通届きます。初回実行時はメール送信の許可を求められる
+ * ので許可してください。
+ */
+function testSendMail() {
+  const result = sendMail_({
+    to: Session.getActiveUser().getEmail(),
+    subject: '【テスト】予約システムのメール送信確認',
+    body: 'このメールが届いていれば、GAS経由のメール送信は正常に動いています。\n\nきしもとカラダcondiTion 予約システム',
+  });
+  Logger.log(result.getContent());
+}
+
 function testCreateOnline() {
   const tomorrow = new Date(Date.now() + 24 * 3600 * 1000);
   const y = tomorrow.getFullYear();
