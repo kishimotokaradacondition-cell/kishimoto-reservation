@@ -66,15 +66,44 @@ esac
 
 # NAS がマウントされていなければ自動でマウントする
 # （初回に Finder で接続して「パスワードをキーチェーンに保存」してあれば、パスワード入力なしで繋がります）
-if [ ! -d "$MOUNT_POINT" ]; then
-  log "NAS をマウントしています: $NAS_URL"
-  osascript -e "mount volume \"$NAS_URL\"" >> "$LOG_FILE" 2>&1
-  sleep 3
-fi
+#
+# スリープ復帰直後などは Wi-Fi や NAS への接続が戻るまで時間がかかるため、
+# 最大 MOUNT_RETRIES 回、MOUNT_WAIT 秒ずつ待ちながら接続を試します。
+# 1回の接続試行は最長 MOUNT_TIMEOUT 秒で打ち切ります（画面のダイアログ待ちで
+# 翌朝まで止まってしまうのを防ぐため）。
+MOUNT_RETRIES=6
+MOUNT_WAIT=30
+MOUNT_TIMEOUT=60
+
+try_mount() {
+  osascript -e "mount volume \"$NAS_URL\"" >> "$LOG_FILE" 2>&1 &
+  local pid=$!
+  local waited=0
+  while kill -0 "$pid" 2>/dev/null && [ "$waited" -lt "$MOUNT_TIMEOUT" ]; do
+    sleep 2
+    waited=$((waited + 2))
+    # 途中でマウントできていれば、それ以上待たない
+    [ -d "$MOUNT_POINT" ] && break
+  done
+  kill "$pid" 2>/dev/null
+  wait "$pid" 2>/dev/null
+}
+
+ATTEMPT=0
+while [ ! -d "$MOUNT_POINT" ] && [ "$ATTEMPT" -lt "$MOUNT_RETRIES" ]; do
+  ATTEMPT=$((ATTEMPT + 1))
+  log "NAS をマウントしています（${ATTEMPT}/${MOUNT_RETRIES}回目）: $NAS_URL"
+  try_mount
+  if [ ! -d "$MOUNT_POINT" ] && [ "$ATTEMPT" -lt "$MOUNT_RETRIES" ]; then
+    log "まだ接続できません。${MOUNT_WAIT}秒待ってやり直します"
+    sleep "$MOUNT_WAIT"
+  fi
+done
 
 if [ ! -d "$MOUNT_POINT" ]; then
-  notify_error "NAS（${NAS_URL}）に接続できません。NASの電源とネットワークを確認してください。"
+  notify_error "NAS（${NAS_URL}）に接続できません（${MOUNT_RETRIES}回試行）。NASの電源とネットワークを確認してください。"
 fi
+log "NAS に接続できました: $MOUNT_POINT"
 
 # 共有フォルダ内の「PCバックアップ」フォルダにまとめて保存する
 # （NASを他の用途でも使っている場合に、既存のファイルと混ざらないように）
