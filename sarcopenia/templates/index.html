@@ -228,7 +228,8 @@
   <div class="card" style="font-size:12.5px;color:var(--muted)">
     <strong>判定基準の出典</strong>: Chen LK, et al. Asian Working Group for Sarcopenia: 2019 Consensus Update on Sarcopenia Diagnosis and Treatment.
     J Am Med Dir Assoc. 2020;21(3):300-307.<br>
-    筋肉量の基準は BIA（InBody などの生体電気インピーダンス法）用の値です。DXA で測った場合は女性の基準が 5.4 kg/m² に変わります。
+    筋肉量の基準は BIA（InBody などの生体電気インピーダンス法）用の値です。DXA で測った場合は女性の基準が 5.4 kg/m² に変わります。<br>
+    <strong>データの保存先</strong>: <code>{{ data_dir }}</code>（画像も含めて sarcopenia.db に保存。毎日1回 backups/ に複製を作成）
   </div>
 
 </div>

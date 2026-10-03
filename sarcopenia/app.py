@@ -14,12 +14,17 @@
 環境変数（すべて任意）:
     SARCOPENIA_PASSWORD   設定するとログイン画面が付く（公開サーバーに置くときは必須）
     SECRET_KEY            ログイン状態を保持する鍵（本番ではランダムな文字列に）
-    SARCOPENIA_DB_PATH    SQLite の保存先（既定: このフォルダの sarcopenia.db）
+    SARCOPENIA_DB_PATH    SQLite の保存先
+                          既定: Mac では ~/Documents/サルコペニア評価/sarcopenia.db
+                               （Mac→NAS 自動バックアップの対象フォルダ内）
+                               それ以外はこのフォルダの sarcopenia.db
     PORT                  待ち受けポート（既定: 5070）
 """
 import json
 import os
+import shutil
 import sqlite3
+import sys
 from datetime import datetime, timedelta
 from functools import wraps
 
@@ -36,7 +41,25 @@ app.secret_key = os.environ.get("SECRET_KEY", "sarcopenia-dev-key-change-me")
 MAX_IMAGE_MB = 10
 app.config["MAX_CONTENT_LENGTH"] = (MAX_IMAGE_MB + 2) * 1024 * 1024
 
-DB_PATH = os.environ.get("SARCOPENIA_DB_PATH", os.path.join(BASE_DIR, "sarcopenia.db"))
+
+def default_db_path(platform=None, home=None):
+    """
+    データベースの既定の保存先。
+    Mac では「書類」フォルダの中に置く。理由: 院の Mac→NAS 自動バックアップ
+    （scripts/backup/pc-to-nas/mac）が ~/Documents を毎日コピーするので、
+    ここに置くだけで評価データと画像が NAS → クラウドへ二重化される。
+    """
+    platform = platform or sys.platform
+    home = home or os.path.expanduser("~")
+    if platform == "darwin":
+        return os.path.join(home, "Documents", "サルコペニア評価", "sarcopenia.db")
+    return os.path.join(BASE_DIR, "sarcopenia.db")
+
+
+DB_PATH = os.environ.get("SARCOPENIA_DB_PATH") or default_db_path()
+DATA_DIR = os.path.dirname(os.path.abspath(DB_PATH))
+BACKUP_DIR = os.path.join(DATA_DIR, "backups")
+BACKUP_KEEP_DAYS = 30
 APP_PASSWORD = os.environ.get("SARCOPENIA_PASSWORD", "")
 
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif", "image/heic", "image/heif"}
@@ -50,6 +73,7 @@ def get_db():
 
 
 def init_db():
+    os.makedirs(DATA_DIR, exist_ok=True)
     with get_db() as conn:
         conn.executescript("""
             CREATE TABLE IF NOT EXISTS assessments (
@@ -88,6 +112,53 @@ init_db()
 def jst_now():
     """日本時間の文字列（サーバーが海外にあっても日本の日付で記録する）"""
     return (datetime.utcnow() + timedelta(hours=9)).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def backup_db(today=None, keep_days=BACKUP_KEEP_DAYS):
+    """
+    1日1回、DB の複製を backups/sarcopenia-YYYY-MM-DD.db に作る（誤操作・破損対策）。
+    すでに今日の分があれば何もしない。古い複製は keep_days 日分だけ残す。
+    画像も DB の中にあるので、このファイル1つで丸ごと戻せる。
+    """
+    today = today or jst_now()[:10]
+    os.makedirs(BACKUP_DIR, exist_ok=True)
+    dest = os.path.join(BACKUP_DIR, f"sarcopenia-{today}.db")
+    if os.path.exists(dest):
+        return None
+    src = sqlite3.connect(DB_PATH)
+    try:
+        dst = sqlite3.connect(dest)
+        try:
+            src.backup(dst)  # 書き込み中でも安全に複製できる SQLite 標準の方法
+        finally:
+            dst.close()
+    finally:
+        src.close()
+    # 古い複製を削除
+    names = sorted(n for n in os.listdir(BACKUP_DIR) if n.startswith("sarcopenia-") and n.endswith(".db"))
+    for n in names[:-keep_days] if len(names) > keep_days else []:
+        try:
+            os.remove(os.path.join(BACKUP_DIR, n))
+        except OSError:
+            pass
+    return dest
+
+
+_last_backup_day = None
+
+
+@app.before_request
+def _daily_backup():
+    """その日最初のアクセス時に1回だけ複製を作る（起動しっぱなしでも毎日残る）"""
+    global _last_backup_day
+    today = jst_now()[:10]
+    if _last_backup_day == today:
+        return
+    _last_backup_day = today
+    try:
+        backup_db(today)
+    except Exception as e:  # 複製に失敗しても本体の動作は止めない
+        print(f"[backup] 複製に失敗: {e}")
 
 
 # ── 認証（SARCOPENIA_PASSWORD を設定したときだけ有効）────────────
@@ -147,6 +218,7 @@ def index():
         levels=LEVELS,
         max_image_mb=MAX_IMAGE_MB,
         auth_enabled=bool(APP_PASSWORD),
+        data_dir=DATA_DIR,
     )
 
 
@@ -383,6 +455,7 @@ def too_large(_e):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5070))
     print(f"サルコペニア評価アプリ起動: http://localhost:{port}")
+    print(f"データの保存先: {DB_PATH}")
     if not APP_PASSWORD:
         print("※ SARCOPENIA_PASSWORD 未設定のためログインなしで動作します（ローカル利用向け）")
     app.run(host="0.0.0.0", port=port, debug=False)

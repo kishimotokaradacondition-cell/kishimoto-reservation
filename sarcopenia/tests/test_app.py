@@ -148,3 +148,39 @@ def test_password_gate(client, monkeypatch):
     # ログアウト
     client.post("/api/logout")
     assert client.get("/api/assessments").status_code == 401
+
+
+# ── 保存先・バックアップ ──
+def test_default_db_path_is_in_documents_on_mac():
+    p = app_module.default_db_path(platform="darwin", home="/Users/kishimoto")
+    assert p == "/Users/kishimoto/Documents/サルコペニア評価/sarcopenia.db"
+
+
+def test_default_db_path_is_local_elsewhere():
+    p = app_module.default_db_path(platform="linux", home="/home/x")
+    assert p == os.path.join(app_module.BASE_DIR, "sarcopenia.db")
+
+
+def test_backup_db_creates_daily_copy_and_prunes(client):
+    client.post("/api/assessments", data=base_form(patient_name="複製 確認"))
+    dest = app_module.backup_db(today="2030-01-10", keep_days=2)
+    assert dest and os.path.exists(dest)
+    # 同じ日は二重に作らない
+    assert app_module.backup_db(today="2030-01-10", keep_days=2) is None
+    # 複製の中身が読める
+    import sqlite3
+    n = sqlite3.connect(dest).execute("SELECT COUNT(*) FROM assessments WHERE patient_name='複製 確認'").fetchone()[0]
+    assert n == 1
+    # 古い分は keep_days を超えたら削除
+    app_module.backup_db(today="2030-01-11", keep_days=2)
+    app_module.backup_db(today="2030-01-12", keep_days=2)
+    names = sorted(os.listdir(app_module.BACKUP_DIR))
+    assert "sarcopenia-2030-01-10.db" not in names
+    assert "sarcopenia-2030-01-11.db" in names and "sarcopenia-2030-01-12.db" in names
+
+
+def test_first_request_of_day_makes_backup(client):
+    app_module._last_backup_day = None
+    client.get("/")
+    today = app_module.jst_now()[:10]
+    assert os.path.exists(os.path.join(app_module.BACKUP_DIR, f"sarcopenia-{today}.db"))

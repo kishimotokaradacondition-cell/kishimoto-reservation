@@ -15,7 +15,45 @@ InBody の結果用紙の写真を添えて記録します。
   最初から分けておき、将来このフォルダごと別リポジトリに移せる形にしています。
 - 患者の健康情報を扱うので、公開中の予約サイトと同じプロセスに載せないほうが安全です。
 
-## 起動方法（パソコン1台で使う場合）
+## 院内の Mac（MacBook Air M3）で使う ← 標準の運用
+
+データは Mac の **「書類」フォルダ内の `サルコペニア評価`** に保存します。
+院の Mac→NAS 自動バックアップ（`scripts/backup/pc-to-nas/mac`）は「書類」を毎日コピーするので、
+この場所に置くだけで評価データと画像が NAS → クラウドへ二重化されます。
+
+```
+~/Documents/サルコペニア評価/
+├── sarcopenia.db          本体（入力内容・判定結果・InBody 画像がすべて入っている）
+└── backups/
+    └── sarcopenia-YYYY-MM-DD.db   1日1回自動で作る複製（30日分）
+```
+
+### 初回セットアップ（1回だけ）
+
+1. このリポジトリを Mac にダウンロード（GitHub の「Code」→「Download ZIP」を展開、または `git clone`）
+2. Finder で `sarcopenia/mac/setup.command` を **ダブルクリック**
+   - 「開発元を確認できない」と出たら、右クリック →「開く」
+   - Python が無いと言われたら、画面の案内どおり `xcode-select --install` を実行してからやり直す
+3. 自動でブラウザが開き http://localhost:5070 が表示されたら完了。ブックマークしておく
+
+セットアップ後は **Mac にログインするたびに自動で起動** します。ブラウザで http://localhost:5070 を開くだけです。
+開かないときは `mac/open.command` をダブルクリック（起動し直してから開きます）。
+
+同じ Wi-Fi 内の iPhone/iPad からは `http://＜MacのIPアドレス＞:5070` で開けます
+（Mac の IP は システム設定 → Wi-Fi → 詳細 で確認）。この場合は後述の `SARCOPENIA_PASSWORD` の設定を推奨。
+
+| ファイル | 役割 |
+|---|---|
+| `mac/setup.command` | 実行環境の作成 ＋ 自動起動の登録 ＋ 起動確認。アプリを更新したときも再実行すれば反映 |
+| `mac/open.command` | アプリを開く。止まっていれば起動し直す |
+| `mac/uninstall.command` | 自動起動を解除（データは消さない） |
+
+### 元に戻したいとき（誤って削除した等）
+
+アプリを止めて（`mac/uninstall.command`）、`backups/` の中の戻したい日付のファイルを
+`sarcopenia.db` という名前にして上書きし、`mac/setup.command` を再実行します。
+
+## その他の環境で起動する場合
 
 ```bash
 cd sarcopenia
@@ -23,8 +61,7 @@ pip install -r requirements.txt
 python app.py
 ```
 
-ブラウザで http://localhost:5070 を開きます。同じ Wi-Fi 内のスマホからは
-`http://＜パソコンのIPアドレス＞:5070` で開けます。
+ブラウザで http://localhost:5070 を開きます。Mac 以外ではデータは `sarcopenia/sarcopenia.db` に保存されます。
 
 ## インターネット上に置く場合（Render など）
 
@@ -42,7 +79,7 @@ python app.py
 |---|---|
 | `SARCOPENIA_PASSWORD` | 設定するとログイン画面が付きます。未設定だと誰でも開けるので公開時は必須 |
 | `SECRET_KEY` | ログイン状態を保持する鍵。長いランダム文字列にする |
-| `SARCOPENIA_DB_PATH` | SQLite の保存先。無料プランのサーバーはディスクが消えるので、永続ディスク上のパスを指定する |
+| `SARCOPENIA_DB_PATH` | SQLite の保存先。Mac の既定は `~/Documents/サルコペニア評価/sarcopenia.db`。サーバーに置く場合は永続ディスク上のパスを指定する |
 | `PORT` | 待ち受けポート（Render は自動で入る） |
 
 > **注意**: 画像はデータベース（SQLite）の中に保存しています。DB ファイル1つをバックアップすれば
@@ -93,9 +130,9 @@ sarcopenia/
 ├── templates/login.html   ログイン画面（SARCOPENIA_PASSWORD 設定時のみ使われる）
 ├── static/js/sarcopenia.js 入力中の自動計算・送信・結果と履歴の描画
 ├── static/css/sarcopenia.css 見た目（配色は予約システムと同じ）
-├── tests/                 自動テスト（判定ロジック 23件、API 10件）
-├── requirements.txt / Procfile
-└── sarcopenia.db          実行すると自動で作られるデータベース（Git には入れない）
+├── mac/                   Mac 用のセットアップ・起動・解除スクリプト（ダブルクリックで実行）
+├── tests/                 自動テスト（判定ロジック 23件、API 14件）
+└── requirements.txt / Procfile
 ```
 
 | やりたいこと | 触るファイル |
@@ -126,7 +163,8 @@ python -m pytest -q
 ## リスク・注意点
 
 - **個人情報**: 氏名＋健康情報です。公開サーバーに置くなら `SARCOPENIA_PASSWORD` と `SECRET_KEY` の設定、HTTPS は必須。
-- **データ消失**: 無料プランのサーバーは再起動でディスクが消えます。永続ディスクかローカル運用を選ぶこと。
+- **データ消失**: Mac 運用では「書類」内に保存し、日次複製 ＋ NAS バックアップで三重に守ります。サーバーに置く場合は無料プランのディスクが再起動で消えるため、永続ディスクが必要です。
+- **Mac のスリープ**: 蓋を閉じるとアプリも止まります（開けば自動で再開）。iPhone から使う場合は Mac を起動したままにしてください。
 - **基準値の対象年齢**: AWGS 2019 は主に 65 歳以上向け。65 歳未満では参考値として扱う旨を画面にも表示しています。
 - **HEIC 画像**: iPhone から選ぶと自動で JPEG に変換されますが、パソコンで HEIC ファイルを直接選ぶと保存はできても表示できないことがあります。その場合は JPEG で保存し直してください。
 - **名前が主キー**: 「前回比」は名前が完全一致した記録を探します。姓名の間の空白など、入力のゆれは候補表示（datalist）で防いでいますが、運用ルール（例: 全角スペース1つ）を決めてください。
