@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>サルコペニア簡易評価 | きしもとカラダcondiTion</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/static/css/sarcopenia.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div>
+    <div class="logo">サルコペニア簡易評価</div>
+    <div class="subtitle">きしもとカラダcondiTion｜院内用（AWGS 2019 基準）</div>
+  </div>
+  {% if auth_enabled %}<button type="button" class="header-btn" id="logout-btn">ログアウト</button>{% endif %}
+</header>
+
+<div class="container">
+
+  <form id="assess-form" autocomplete="off" novalidate>
+
+    <!-- ① 基本情報 -->
+    <div class="card">
+      <div class="card-title">① 基本情報</div>
+      <div class="form-grid">
+        <div class="form-group span-2">
+          <label for="patient_name">お名前<span class="req">*</span></label>
+          <input type="text" id="patient_name" name="patient_name" list="name-list" placeholder="例）山田 花子" maxlength="50">
+          <datalist id="name-list"></datalist>
+        </div>
+        <div class="form-group span-2">
+          <label>性別<span class="req">*</span></label>
+          <div class="choice-group">
+            <input type="radio" name="sex" id="sex-male" value="male"><label for="sex-male">男性</label>
+            <input type="radio" name="sex" id="sex-female" value="female"><label for="sex-female">女性</label>
+          </div>
+          <div class="field-hint">基準値（握力・筋肉量・下腿周囲長）が男女で変わります</div>
+        </div>
+        <div class="form-group">
+          <label for="age">年齢</label>
+          <input type="number" id="age" name="age" min="0" max="120" inputmode="numeric" placeholder="例）72">
+        </div>
+        <div class="form-group">
+          <label for="height_cm">身長 (cm)</label>
+          <input type="number" id="height_cm" name="height_cm" step="0.1" inputmode="decimal" placeholder="例）158.0">
+          <div class="field-hint">SMI（筋肉量指数）の計算に必要</div>
+        </div>
+        <div class="form-group">
+          <label for="weight_kg">体重 (kg)</label>
+          <input type="number" id="weight_kg" name="weight_kg" step="0.1" inputmode="decimal" placeholder="例）52.0">
+        </div>
+        <div class="form-group">
+          <label for="calf_cm">下腿周囲長 (cm)</label>
+          <input type="number" id="calf_cm" name="calf_cm" step="0.1" inputmode="decimal" placeholder="例）33.5">
+          <div class="field-hint">ふくらはぎの一番太い所。男性 {{ cutoffs.calf_cm.male|int }} / 女性 {{ cutoffs.calf_cm.female|int }}cm 未満で陽性</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ② SARC-F -->
+    <div class="card">
+      <div class="card-title">② SARC-F 質問票（5問）</div>
+      <div class="card-help">ご本人に聞いて選びます。合計 {{ cutoffs.sarcf }}点以上でスクリーニング陽性。下腿周囲長が基準未満なら +10点（SARC-CalF）。</div>
+      {% for key, title, text in sarcf_items %}
+      {% set choices = sarcf_choices['falls'] if key == 'falls' else sarcf_choices['default'] %}
+      <div class="sarcf-q">
+        <div class="q-title">{{ loop.index }}. {{ title }}</div>
+        <div class="q-text">{{ text }}</div>
+        <div class="choice-group">
+          {% for val, label in choices %}
+          <input type="radio" name="sarcf_{{ key }}" id="sarcf-{{ key }}-{{ val }}" value="{{ val }}" class="sarcf-input">
+          <label for="sarcf-{{ key }}-{{ val }}">{{ label }}（{{ val }}点）</label>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+      <div class="sarcf-total">SARC-F 合計: <span id="sarcf-total">未回答</span></div>
+    </div>
+
+    <!-- ③ 筋力・身体機能 -->
+    <div class="card">
+      <div class="card-title">③ 筋力・身体機能</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="grip_kg">握力 (kg)</label>
+          <input type="number" id="grip_kg" name="grip_kg" step="0.1" inputmode="decimal" placeholder="例）24.5">
+          <div class="field-hint">左右2回ずつ測って最大値。男性 {{ cutoffs.grip_kg.male|int }} / 女性 {{ cutoffs.grip_kg.female|int }}kg 未満で筋力低下</div>
+        </div>
+        <div class="form-group">
+          <label for="chair_stand_sec">5回椅子立ち上がり (秒)</label>
+          <input type="number" id="chair_stand_sec" name="chair_stand_sec" step="0.1" inputmode="decimal" placeholder="例）13.2">
+          <div class="field-hint">腕を組んで5回立ち座り。{{ cutoffs.chair_stand_sec|int }}秒以上で身体機能低下</div>
+        </div>
+        <div class="form-group">
+          <label for="gait_distance">歩行テストの距離</label>
+          <select id="gait_distance">
+            <option value="6">6 m（標準）</option>
+            <option value="5">5 m</option>
+            <option value="4">4 m</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="gait_sec">歩行にかかった時間 (秒)</label>
+          <input type="number" id="gait_sec" step="0.01" inputmode="decimal" placeholder="例）6.5">
+          <input type="hidden" id="gait_speed_ms" name="gait_speed_ms">
+          <div class="calc-value" id="gait-calc">歩行速度: ―</div>
+          <div class="field-hint">普段の速さで歩く。{{ cutoffs.gait_speed_ms }} m/秒 未満で身体機能低下</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ④ 筋肉量（InBody） -->
+    <div class="card">
+      <div class="card-title">④ 筋肉量（InBody）</div>
+      <div class="card-help">InBody の結果用紙を撮影して添付し、「部位別筋肉量」の数値を転記します（現時点では自動読み取りはしません）。</div>
+
+      <label class="upload-box" for="inbody_image">
+        <input type="file" id="inbody_image" name="inbody_image" accept="image/*">
+        <div class="upload-label">📷 InBody の画像を選ぶ / 撮影する</div>
+        <div class="upload-sub">JPEG / PNG / HEIC、{{ max_image_mb }}MB まで。送信時に自動で縮小します</div>
+      </label>
+      <div class="preview-wrap hidden" id="preview-wrap">
+        <img id="preview-img" alt="InBody 画像プレビュー">
+        <div class="preview-meta" id="preview-meta"></div>
+        <button type="button" class="btn btn-outline btn-sm" id="clear-image" style="margin-top:8px">画像を外す</button>
+      </div>
+
+      <div class="form-grid" style="margin-top:16px">
+        <div class="form-group">
+          <label for="arm_r_kg">右腕 筋肉量 (kg)</label>
+          <input type="number" id="arm_r_kg" name="arm_r_kg" step="0.01" inputmode="decimal" class="limb" placeholder="例）1.95">
+        </div>
+        <div class="form-group">
+          <label for="arm_l_kg">左腕 筋肉量 (kg)</label>
+          <input type="number" id="arm_l_kg" name="arm_l_kg" step="0.01" inputmode="decimal" class="limb" placeholder="例）1.90">
+        </div>
+        <div class="form-group">
+          <label for="leg_r_kg">右脚 筋肉量 (kg)</label>
+          <input type="number" id="leg_r_kg" name="leg_r_kg" step="0.01" inputmode="decimal" class="limb" placeholder="例）6.10">
+        </div>
+        <div class="form-group">
+          <label for="leg_l_kg">左脚 筋肉量 (kg)</label>
+          <input type="number" id="leg_l_kg" name="leg_l_kg" step="0.01" inputmode="decimal" class="limb" placeholder="例）6.05">
+        </div>
+        <div class="form-group span-2">
+          <div class="calc-value" id="asm-calc">四肢骨格筋量 (ASM): ― ／ SMI: ―</div>
+          <div class="field-hint">SMI = 四肢の合計(kg) ÷ 身長(m)²。男性 {{ cutoffs.smi_bia.male }} / 女性 {{ cutoffs.smi_bia.female }} kg/m² 未満で筋肉量低下</div>
+        </div>
+        <div class="form-group span-2">
+          <label for="smi">SMI を直接入力 (kg/m²)　※用紙に印字されている場合</label>
+          <input type="number" id="smi" name="smi" step="0.01" inputmode="decimal" placeholder="例）5.4">
+          <div class="field-hint">入力すると四肢の数値から求めた値より優先されます</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ⑤ メモ -->
+    <div class="card">
+      <div class="card-title">⑤ メモ（任意）</div>
+      <div class="form-group">
+        <textarea id="note" name="note" maxlength="1000" placeholder="痛みの部位、生活習慣、実施した介入など"></textarea>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button type="button" class="btn btn-outline" id="preview-btn">判定だけ見る（保存しない）</button>
+      <button type="submit" class="btn btn-primary" id="submit-btn">判定して保存する</button>
+    </div>
+    <div style="height:10px"></div>
+    <button type="button" class="btn btn-outline" id="reset-btn">入力をクリア</button>
+  </form>
+
+  <!-- 判定結果 -->
+  <div class="card hidden" id="result-card">
+    <div class="card-title">判定結果</div>
+    <div class="result-head">
+      <span class="result-badge" id="result-badge"></span>
+      <span class="result-name" id="result-name"></span>
+      <span class="result-date" id="result-date"></span>
+    </div>
+    <div class="result-action" id="result-action"></div>
+    <div class="result-notes hidden" id="result-notes"><ul id="result-notes-list"></ul></div>
+
+    <div class="result-grid" id="result-grid">
+      <div class="table-scroll">
+        <table class="criteria-table">
+          <thead>
+            <tr><th>項目</th><th>測定値</th><th>基準（AWGS 2019）</th><th>判定</th><th>前回比</th></tr>
+          </thead>
+          <tbody id="criteria-body"></tbody>
+        </table>
+      </div>
+      <div class="result-image hidden" id="result-image">
+        <img id="result-img" alt="InBody 画像">
+      </div>
+    </div>
+
+    <div class="btn-row" style="margin-top:14px">
+      <button type="button" class="btn btn-outline btn-sm" id="reassess-btn">この方で再評価する（基本情報を引き継ぐ）</button>
+      <button type="button" class="btn btn-danger btn-sm hidden" id="delete-btn">この記録を削除</button>
+    </div>
+    <p class="disclaimer">
+      ※ 本結果は AWGS 2019 の基準値による<strong>スクリーニング（ふるい分け）判定</strong>であり、医師による診断ではありません。
+      サルコペニアの確定診断や治療方針は医療機関にご相談ください。
+    </p>
+  </div>
+
+  <!-- 履歴 -->
+  <div class="card">
+    <div class="card-title">評価履歴</div>
+    <div class="history-filter">
+      <input type="text" id="history-filter" placeholder="名前で絞り込み">
+      <button type="button" class="btn btn-outline btn-sm" id="history-refresh">更新</button>
+    </div>
+    <div class="table-scroll">
+      <table class="history-table">
+        <thead>
+          <tr><th>日時</th><th>名前</th><th>判定</th><th>SMI</th><th>握力</th><th>歩行</th><th>椅子</th><th>画像</th></tr>
+        </thead>
+        <tbody id="history-body"></tbody>
+      </table>
+    </div>
+    <div class="empty hidden" id="history-empty">まだ記録がありません</div>
+  </div>
+
+  <div class="card" style="font-size:12.5px;color:var(--muted)">
+    <strong>判定基準の出典</strong>: Chen LK, et al. Asian Working Group for Sarcopenia: 2019 Consensus Update on Sarcopenia Diagnosis and Treatment.
+    J Am Med Dir Assoc. 2020;21(3):300-307.<br>
+    筋肉量の基準は BIA（InBody などの生体電気インピーダンス法）用の値です。DXA で測った場合は女性の基準が 5.4 kg/m² に変わります。<br>
+    <strong>データの保存先</strong>: <code>{{ data_dir }}</code>（画像も含めて sarcopenia.db に保存。毎日1回 backups/ に複製を作成）
+  </div>
+
+</div>
+
+<div id="toast"></div>
+<script src="/static/js/sarcopenia.js"></script>
+</body>
+</html>

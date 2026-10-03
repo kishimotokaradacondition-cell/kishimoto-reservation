@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ログイン | サルコペニア簡易評価</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/static/css/sarcopenia.css">
+</head>
+<body>
+<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px">
+  <div style="width:100%;max-width:360px">
+    <div style="text-align:center;margin-bottom:28px">
+      <div style="font-size:40px;margin-bottom:8px">🔐</div>
+      <div style="font-size:20px;font-weight:700;color:var(--primary)">サルコペニア簡易評価</div>
+      <div style="font-size:13px;color:var(--muted);margin-top:4px">きしもとカラダcondiTion 院内用</div>
+    </div>
+    <div class="card">
+      <div class="form-group">
+        <label for="pw-input">パスワード<span class="req">*</span></label>
+        <input type="password" id="pw-input" placeholder="パスワードを入力" onkeydown="if(event.key==='Enter')doLogin()">
+      </div>
+      <div id="login-error" style="color:var(--danger);font-size:13px;margin:8px 0 12px;display:none">パスワードが違います</div>
+      <button class="btn btn-primary" style="margin-top:8px" onclick="doLogin()">ログイン</button>
+    </div>
+  </div>
+</div>
+<script>
+async function doLogin() {
+  const pw = document.getElementById('pw-input').value;
+  const err = document.getElementById('login-error');
+  err.style.display = 'none';
+  const res = await fetch('/api/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: pw }),
+    credentials: 'include'
+  });
+  if (res.ok) { window.location.href = '/'; } else { err.style.display = 'block'; }
+}
+</script>
+</body>
+</html>
