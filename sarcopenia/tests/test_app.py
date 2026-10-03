@@ -151,9 +151,9 @@ def test_password_gate(client, monkeypatch):
 
 
 # ── 保存先・バックアップ ──
-def test_default_db_path_is_in_documents_on_mac():
+def test_default_db_path_is_in_home_on_mac():
     p = app_module.default_db_path(platform="darwin", home="/Users/kishimoto")
-    assert p == "/Users/kishimoto/Documents/サルコペニア評価/sarcopenia.db"
+    assert p == "/Users/kishimoto/サルコペニア評価/sarcopenia.db"
 
 
 def test_default_db_path_is_local_elsewhere():

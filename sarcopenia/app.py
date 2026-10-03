@@ -15,8 +15,8 @@
     SARCOPENIA_PASSWORD   設定するとログイン画面が付く（公開サーバーに置くときは必須）
     SECRET_KEY            ログイン状態を保持する鍵（本番ではランダムな文字列に）
     SARCOPENIA_DB_PATH    SQLite の保存先
-                          既定: Mac では ~/Documents/サルコペニア評価/sarcopenia.db
-                               （Mac→NAS 自動バックアップの対象フォルダ内）
+                          既定: Mac では ~/サルコペニア評価/sarcopenia.db
+                               （Mac→NAS 自動バックアップの対象フォルダ）
                                それ以外はこのフォルダの sarcopenia.db
     PORT                  待ち受けポート（既定: 5070）
 """
@@ -45,14 +45,16 @@ app.config["MAX_CONTENT_LENGTH"] = (MAX_IMAGE_MB + 2) * 1024 * 1024
 def default_db_path(platform=None, home=None):
     """
     データベースの既定の保存先。
-    Mac では「書類」フォルダの中に置く。理由: 院の Mac→NAS 自動バックアップ
-    （scripts/backup/pc-to-nas/mac）が ~/Documents を毎日コピーするので、
-    ここに置くだけで評価データと画像が NAS → クラウドへ二重化される。
+    Mac ではホーム直下の「サルコペニア評価」フォルダに置く。
+    「書類」「デスクトップ」「ダウンロード」は macOS の保護対象で、ログイン時に
+    裏で自動起動するプログラム（LaunchAgent）からは読み書きできないため、
+    保護対象外のホーム直下を使う。院の Mac→NAS 自動バックアップ
+    （scripts/backup/pc-to-nas/mac）はこのフォルダも対象に含めてある。
     """
     platform = platform or sys.platform
     home = home or os.path.expanduser("~")
     if platform == "darwin":
-        return os.path.join(home, "Documents", "サルコペニア評価", "sarcopenia.db")
+        return os.path.join(home, "サルコペニア評価", "sarcopenia.db")
     return os.path.join(BASE_DIR, "sarcopenia.db")
 
 

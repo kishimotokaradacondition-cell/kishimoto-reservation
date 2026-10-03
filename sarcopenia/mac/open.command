@@ -13,7 +13,7 @@ if ! curl -s -o /dev/null "http://localhost:$PORT/"; then
       sleep 1
     done
   else
-    echo "セットアップがまだです。先に setup.command をダブルクリックしてください。"
+    echo "セットアップがまだです。先にターミナルで  bash setup.command  を実行してください。"
     exit 1
   fi
 fi
