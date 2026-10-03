@@ -1,0 +1,4 @@
+__pycache__/
+*.pyc
+sarcopenia.db
+.pytest_cache/
