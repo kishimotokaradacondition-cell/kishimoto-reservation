@@ -1,0 +1,1155 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>足部機能分析ラボ</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Zen+Maru+Gothic:wght@500;700&display=swap">
+<style>
+/* ============ tokens ============ */
+:root{
+  --bg:#F1F4F2; --surface:#FFFFFF; --surface2:#E9EEEB;
+  --ink:#1F2A30; --ink2:#55666D; --ink3:#8A979D;
+  --line:#D7DFDB; --accent:#0E7368; --accent-soft:#DDEBE8; --accent-ink:#0A5850;
+  --good:#177245; --good-bg:#E2F1E7; --warn:#9A5B00; --warn-bg:#F7ECD9;
+  --crit:#B3261E; --crit-bg:#F9E4E2; --na:#78868C; --na-bg:#ECEFF0;
+  --shadow:0 1px 3px rgba(31,42,48,.08),0 4px 14px rgba(31,42,48,.06);
+}
+:root:not([data-theme="light"]){}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#171D20; --surface:#212A2E; --surface2:#2A353A;
+    --ink:#E7EDEA; --ink2:#A9B7B4; --ink3:#7D8C89;
+    --line:#37444A; --accent:#4BB8AA; --accent-soft:#1E3A37; --accent-ink:#7FD2C6;
+    --good:#5FBE8A; --good-bg:#1D3328; --warn:#E0A24A; --warn-bg:#3A2E17;
+    --crit:#E88A80; --crit-bg:#3D2321; --na:#8A9AA0; --na-bg:#2C3538;
+    --shadow:0 1px 3px rgba(0,0,0,.4);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#171D20; --surface:#212A2E; --surface2:#2A353A;
+  --ink:#E7EDEA; --ink2:#A9B7B4; --ink3:#7D8C89;
+  --line:#37444A; --accent:#4BB8AA; --accent-soft:#1E3A37; --accent-ink:#7FD2C6;
+  --good:#5FBE8A; --good-bg:#1D3328; --warn:#E0A24A; --warn-bg:#3A2E17;
+  --crit:#E88A80; --crit-bg:#3D2321; --na:#8A9AA0; --na-bg:#2C3538;
+  --shadow:0 1px 3px rgba(0,0,0,.4);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:"Noto Sans JP","Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif;
+  font-size:14px;line-height:1.65;-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4{font-family:"Zen Maru Gothic","Noto Sans JP",sans-serif;line-height:1.4;text-wrap:balance;margin:0}
+button{font-family:inherit}
+input,select,textarea{font-family:inherit;font-size:14px;color:var(--ink);background:var(--surface);
+  border:1px solid var(--line);border-radius:6px;padding:6px 8px}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+textarea{width:100%;resize:vertical}
+input[type=number]{width:5.5em}
+input[type=checkbox]{width:16px;height:16px;accent-color:var(--accent)}
+label{cursor:pointer}
+
+/* ============ app frame ============ */
+.appbar{background:var(--surface);border-bottom:1px solid var(--line);padding:12px 20px;
+  display:flex;flex-wrap:wrap;gap:12px;align-items:center;position:sticky;top:0;z-index:20;box-shadow:var(--shadow)}
+.brand{display:flex;flex-direction:column;margin-right:auto}
+.brand .t{font-family:"Zen Maru Gothic",sans-serif;font-weight:700;font-size:18px;color:var(--accent-ink)}
+.brand .s{font-size:11px;color:var(--ink2);letter-spacing:.06em}
+.appbar .ctrl{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;
+  padding:7px 14px;cursor:pointer;font-size:13px;font-weight:500}
+.btn:hover{background:var(--surface2)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.ghost{border-color:transparent;color:var(--ink2)}
+.steps{display:flex;gap:4px;flex-wrap:wrap;padding:12px 20px 0;max-width:1080px;margin:0 auto}
+.steps button{border:1px solid var(--line);border-bottom:none;background:var(--surface2);color:var(--ink2);
+  border-radius:10px 10px 0 0;padding:8px 13px;cursor:pointer;font-size:13px;font-weight:500}
+.steps button.on{background:var(--surface);color:var(--accent-ink);font-weight:700;border-color:var(--accent);border-bottom:2px solid var(--surface);margin-bottom:-1px}
+main{max-width:1080px;margin:0 auto;padding:0 20px 80px}
+section.step{display:none;background:var(--surface);border:1px solid var(--line);border-radius:0 12px 12px 12px;
+  padding:26px 28px;box-shadow:var(--shadow)}
+section.step.on{display:block}
+.step h2{font-size:19px;color:var(--accent-ink);margin-bottom:4px}
+.step .lead{color:var(--ink2);font-size:13px;margin:0 0 18px}
+fieldset{border:1px solid var(--line);border-radius:10px;padding:14px 16px 16px;margin:0 0 18px}
+legend{font-weight:700;font-size:13.5px;color:var(--accent-ink);padding:0 8px;font-family:"Zen Maru Gothic",sans-serif}
+.grid{display:grid;gap:12px 20px}
+.g2{grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+.g3{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+.f{display:flex;flex-direction:column;gap:4px}
+.f>span{font-size:12px;color:var(--ink2);font-weight:500}
+.f small{color:var(--ink3);font-size:11px}
+.chk{display:flex;align-items:flex-start;gap:8px;padding:4px 0;font-size:13.5px}
+.chk input{margin-top:3px;flex:none}
+.inline{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.unit{color:var(--ink3);font-size:12px}
+.hint{background:var(--accent-soft);border-radius:8px;padding:10px 14px;font-size:12.5px;color:var(--accent-ink);margin:0 0 16px}
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th,.tbl td{border:1px solid var(--line);padding:6px 9px;text-align:left;vertical-align:top}
+.tbl th{background:var(--surface2);font-weight:600;font-size:12.5px}
+.tbl td.num{font-variant-numeric:tabular-nums}
+.scroll{overflow-x:auto}
+.badge{display:inline-block;border-radius:999px;padding:1px 10px;font-size:11.5px;font-weight:700;white-space:nowrap}
+.b-good{background:var(--good-bg);color:var(--good)}
+.b-warn{background:var(--warn-bg);color:var(--warn)}
+.b-crit{background:var(--crit-bg);color:var(--crit)}
+.b-na{background:var(--na-bg);color:var(--na)}
+.alert{border-radius:10px;padding:14px 18px;margin:0 0 18px;font-size:13.5px}
+.alert.crit{background:var(--crit-bg);color:var(--crit);border:1px solid var(--crit)}
+.alert.good{background:var(--good-bg);color:var(--good);border:1px solid var(--good)}
+.alert.warn{background:var(--warn-bg);color:var(--warn);border:1px solid var(--warn)}
+.card{border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin-bottom:16px;background:var(--surface)}
+.card h3{font-size:15px;color:var(--accent-ink);margin-bottom:8px}
+.fpi-grid{display:grid;grid-template-columns:1fr 90px 90px;gap:6px 10px;align-items:center;font-size:12.5px}
+.fpi-grid .h{font-weight:700;color:var(--ink2);font-size:12px}
+.fpi-grid select{width:100%}
+.total-line{margin-top:10px;font-weight:700;color:var(--accent-ink)}
+.stepnav{display:flex;justify-content:space-between;margin-top:22px}
+.gaugewrap{display:flex;flex-direction:column;gap:2px;margin:6px 0}
+.gaugewrap .gl{font-size:12px;color:var(--ink2);display:flex;justify-content:space-between}
+.gaugewrap .gl b{color:var(--ink)}
+footer.appfoot{max-width:1080px;margin:24px auto 40px;padding:0 20px;color:var(--ink3);font-size:11.5px}
+
+/* ============ A4 sheets (always light = paper) ============ */
+.sheetwrap{background:#8f9ba0;padding:24px;border-radius:12px;overflow-x:auto;margin-bottom:20px}
+.sheet{width:210mm;min-height:296mm;background:#fff;color:#1F2A30;margin:0 auto;padding:11mm 12mm;
+  font-size:10.2pt;line-height:1.5;box-shadow:0 2px 14px rgba(0,0,0,.25);
+  font-family:"Noto Sans JP","Hiragino Kaku Gothic ProN",Meiryo,sans-serif}
+.sheet *{box-sizing:border-box}
+.sheet h1,.sheet h2,.sheet h3{color:#0A5850}
+.sheet .sh-head{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #0E7368;padding-bottom:6px;margin-bottom:10px}
+.sheet .sh-head .ttl{font-size:15pt;font-weight:700;font-family:"Zen Maru Gothic",sans-serif}
+.sheet .sh-head .sub{font-size:8pt;color:#55666D}
+.sheet .sh-head .who{text-align:right;font-size:9pt}
+.sheet table{width:100%;border-collapse:collapse;font-size:8.6pt;margin:4px 0 8px}
+.sheet th,.sheet td{border:1px solid #B9C6C1;padding:3px 6px;text-align:left;vertical-align:top}
+.sheet th{background:#E4EEEA;font-weight:600}
+.sheet .sec{margin:8px 0 4px;font-size:10.5pt;font-weight:700;color:#0A5850;
+  border-left:4px solid #0E7368;padding-left:8px;font-family:"Zen Maru Gothic",sans-serif}
+.sheet .tag{display:inline-block;border-radius:999px;padding:0 8px;font-size:7.6pt;font-weight:700}
+.sheet .t-good{background:#E2F1E7;color:#177245}
+.sheet .t-warn{background:#F7ECD9;color:#9A5B00}
+.sheet .t-crit{background:#F9E4E2;color:#B3261E}
+.sheet .t-na{background:#ECEFF0;color:#78868C}
+.sheet .box{border:1.5px solid #0E7368;border-radius:8px;padding:8px 12px;margin:6px 0}
+.sheet .critbox{border:2px solid #B3261E;background:#F9E4E2;color:#8C1D17;border-radius:8px;padding:8px 12px;margin:6px 0;font-weight:600}
+.sheet .foot{margin-top:10px;border-top:1px solid #B9C6C1;padding-top:5px;font-size:7.6pt;color:#78868C}
+.sheet ul{margin:2px 0 8px;padding-left:18px}
+.sheet li{margin:1px 0}
+.sheet .cols{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sheet-p{font-family:"Zen Maru Gothic","Noto Sans JP",sans-serif}
+.sheet-p .exname{font-weight:700;font-size:10pt}
+.sheet-p .exhow{font-size:8.8pt}
+.sheet-p .expt{font-size:8.2pt;color:#0A5850}
+.sheet-p td,.sheet-p th{padding:4px 6px}
+.gauge-svg{display:block}
+
+@media print{
+  body{background:#fff}
+  .appbar,.steps,main,footer.appfoot,.noprint{display:none !important}
+  .printzone{display:block !important}
+  .sheetwrap{background:none;padding:0;border-radius:0;margin:0;overflow:visible}
+  .sheet{box-shadow:none;margin:0;width:auto;min-height:auto;page-break-after:always}
+  body.print-t #pz-patient{display:none}
+  body.print-p #pz-therapist{display:none}
+}
+.printzone{display:none}
+@media (max-width:760px){
+  section.step{padding:18px 14px}
+  .fpi-grid{grid-template-columns:1fr 70px 70px}
+}
+</style>
+</head>
+<body>
+
+<header class="appbar noprint">
+  <div class="brand">
+    <span class="t">足部機能分析ラボ</span>
+    <span class="s">きしもとカラダcondiTion｜評価 → 分析 → 介入 → 再評価</span>
+  </div>
+  <div class="ctrl">
+    <select id="recSelect" title="保存済みの記録を開く" style="max-width:220px"></select>
+    <button class="btn" id="btnLoad">開く</button>
+    <button class="btn" id="btnNew">新規</button>
+    <button class="btn primary" id="btnSave">保存</button>
+    <button class="btn ghost" id="btnDelete">削除</button>
+    <button class="btn ghost" id="btnExport">JSON書出</button>
+    <label class="btn ghost" style="display:inline-block">JSON読込<input type="file" id="fileImport" accept=".json" hidden></label>
+  </div>
+</header>
+
+<nav class="steps noprint" id="stepNav"></nav>
+
+<main class="noprint">
+
+<!-- ======================= STEP 1 基本情報 ======================= -->
+<section class="step" data-step="0">
+  <h2>① 基本情報</h2>
+  <p class="lead">お名前・年齢・生活状況・スポーツ歴を記録します。年齢によって評価基準とプログラムが自動で切り替わります。</p>
+  <fieldset>
+    <legend>患者情報</legend>
+    <div class="grid g3">
+      <div class="f"><span>氏名 *</span><input type="text" data-k="basic.name" placeholder="例）山田 太郎"></div>
+      <div class="f"><span>ふりがな</span><input type="text" data-k="basic.kana"></div>
+      <div class="f"><span>性別</span><select data-k="basic.sex"><option value=""></option><option>男性</option><option>女性</option><option>その他・回答しない</option></select></div>
+      <div class="f"><span>年齢 *</span><div class="inline"><input type="number" data-k="basic.age" min="3" max="100"><span class="unit">歳</span></div></div>
+      <div class="f"><span>身長</span><div class="inline"><input type="number" data-k="basic.height" step="0.1"><span class="unit">cm</span></div></div>
+      <div class="f"><span>体重</span><div class="inline"><input type="number" data-k="basic.weight" step="0.1"><span class="unit">kg</span></div><small id="bmiOut"></small></div>
+      <div class="f"><span>評価日 *</span><input type="date" data-k="basic.date"></div>
+      <div class="f"><span>評価の段階</span><select data-k="basic.stage"><option>初回</option><option>4週再評価</option><option>8週再評価</option><option>12週再評価</option><option>その他</option></select></div>
+      <div class="f"><span>担当者</span><input type="text" data-k="basic.staff"></div>
+    </div>
+  </fieldset>
+  <fieldset>
+    <legend>現在の生活状況</legend>
+    <div class="f"><span>職業・学校・生活リズムなど</span>
+      <textarea rows="2" data-k="basic.life" placeholder="例）小学5年生。放課後は週4日サッカークラブ。／ 事務職で座り仕事中心。通勤で往復40分歩く。"></textarea></div>
+  </fieldset>
+  <fieldset>
+    <legend>スポーツ歴・運動負荷</legend>
+    <div class="grid g2">
+      <div class="f"><span>現在行っているスポーツ（種目・所属・頻度）</span>
+        <textarea rows="2" data-k="basic.sports" placeholder="例）サッカー（クラブチーム）週4回＋週末試合"></textarea></div>
+      <div class="f"><span>過去のスポーツ歴</span>
+        <textarea rows="2" data-k="basic.sportsPast" placeholder="例）小1〜小3 水泳"></textarea></div>
+    </div>
+    <div class="grid g3" style="margin-top:10px">
+      <div class="f"><span>週の練習時間</span><div class="inline"><input type="number" data-k="basic.hoursWeek" step="0.5" min="0"><span class="unit">時間/週</span></div><small>「週の練習時間 ＞ 年齢」でケガ約2倍（Jayanthi 2015）</small></div>
+      <div class="f"><span>週の完全休養日</span><div class="inline"><input type="number" data-k="basic.restDays" min="0" max="7"><span class="unit">日/週</span></div></div>
+      <div class="f"><label class="chk"><input type="checkbox" data-k="basic.singleSport"><span>一つの種目に専念している（単一種目専門化）</span></label></div>
+    </div>
+  </fieldset>
+  <div class="stepnav"><span></span><button class="btn primary" onclick="go(1)">次へ：症状・生活習慣 →</button></div>
+</section>
+
+<!-- ======================= STEP 2 症状・習慣 ======================= -->
+<section class="step" data-step="1">
+  <h2>② 痛みの部位・症状・生活習慣</h2>
+  <p class="lead">痛む部位と強さ（NRS 0〜10）、足に影響する生活習慣を記録します。</p>
+  <fieldset>
+    <legend>痛みがある部位（あてはまるもの全て）</legend>
+    <div class="grid g3" id="painSites"></div>
+    <div class="f" style="margin-top:8px"><span>部位の補足（左右・詳しい場所など）</span><input type="text" data-k="pain.siteNote" placeholder="例）右かかとの内側。走った後に強い"></div>
+  </fieldset>
+  <fieldset>
+    <legend>痛みの強さ（NRS：0=痛みなし 〜 10=最悪の痛み）</legend>
+    <div class="grid g3">
+      <div class="f"><span>安静時</span><input type="number" data-k="pain.nrsRest" min="0" max="10"></div>
+      <div class="f"><span>歩行時</span><input type="number" data-k="pain.nrsWalk" min="0" max="10"></div>
+      <div class="f"><span>運動時</span><input type="number" data-k="pain.nrsSport" min="0" max="10"></div>
+    </div>
+    <div class="grid g2" style="margin-top:10px">
+      <div class="f"><span>いつから・きっかけ</span><input type="text" data-k="pain.onset" placeholder="例）3か月前の大会後から"></div>
+      <div class="f"><span>過去2週間に休んだ練習・体育の回数</span><div class="inline"><input type="number" data-k="pain.missed" min="0"><span class="unit">回</span></div></div>
+    </div>
+    <div class="f" style="margin-top:10px"><span>日常生活で困っていること（生活の質への影響）</span>
+      <textarea rows="2" data-k="pain.qol" placeholder="例）長く歩くと足が痛くなり買い物がつらい。階段の下りがこわい。"></textarea></div>
+  </fieldset>
+  <fieldset>
+    <legend>生活習慣チェック</legend>
+    <div class="grid g2">
+      <div class="f"><span>靴のつま先の余裕（捨て寸）</span><select data-k="habits.shoeFit"><option value=""></option><option>約1cmあり（適正）</option><option>きつい・小さい</option><option>大きすぎる</option><option>未確認</option></select></div>
+      <div class="f"><span>かかと部分（ヒールカウンター）の硬さ</span><select data-k="habits.heelCounter"><option value=""></option><option>硬い（適正）</option><option>柔らかい・つぶれている</option><option>未確認</option></select></div>
+      <div class="f"><span>爪の切り方</span><select data-k="habits.nailCut"><option value=""></option><option>まっすぐ（スクエアカット）</option><option>角を落とす・深爪ぎみ</option><option>不明</option></select></div>
+      <div class="f"><span>裸足で遊ぶ・過ごす機会</span><select data-k="habits.barefoot"><option value=""></option><option>よくある</option><option>ときどき</option><option>ほぼない</option></select></div>
+      <div class="f"><span>1日のスクリーンタイム</span><div class="inline"><input type="number" data-k="habits.screen" step="0.5" min="0"><span class="unit">時間/日</span></div></div>
+    </div>
+    <div style="margin-top:8px">
+      <label class="chk"><input type="checkbox" data-k="habits.wSitting"><span>W座り（ぺたんこ座り）のくせがある</span></label>
+      <label class="chk"><input type="checkbox" data-k="habits.heels"><span>ヒール5cm以上の靴を日常的に履く</span></label>
+      <label class="chk"><input type="checkbox" data-k="habits.standing"><span>立ち仕事が長い（連続60〜90分以上）</span></label>
+      <label class="chk"><input type="checkbox" data-k="habits.familyHx"><span>家族に扁平足・外反母趾など足の変形がある</span></label>
+    </div>
+  </fieldset>
+  <div class="stepnav"><button class="btn" onclick="go(0)">← 戻る</button><button class="btn primary" onclick="go(2)">次へ：レッドフラッグ →</button></div>
+</section>
+
+<!-- ======================= STEP 3 レッドフラッグ ======================= -->
+<section class="step" data-step="2">
+  <h2>③ レッドフラッグ（医療機関への紹介判定）</h2>
+  <p class="lead">1つでも該当する場合は、運動プログラムを開始する前に整形外科・皮膚科等への紹介を優先します。見逃しは事故に直結します。</p>
+  <div class="hint">硬性扁平足・足根骨癒合（8〜16歳発症）・片側性の変形は整体の適応外。「矯正」は禁忌です。</div>
+  <fieldset>
+    <legend>足部の構造</legend>
+    <label class="chk"><input type="checkbox" data-k="red.rigidFlat" class="rf"><span>つま先立ちしても踵が内反せず、アーチが出ない／母趾を反らしてもアーチが出ない（Jack's test 陰性）＝硬性扁平足疑い</span></label>
+    <label class="chk"><input type="checkbox" data-k="red.unilateral" class="rf"><span>片側だけの扁平足・凹足、または急速に進行する変形</span></label>
+    <label class="chk"><input type="checkbox" data-k="red.lateralPain" class="rf"><span>足の外側の痛み＋捻挫を繰り返す（足根骨癒合疑い）</span></label>
+    <label class="chk"><input type="checkbox" data-k="red.navBump" class="rf"><span>舟状骨の内側に骨の出っ張りと圧痛がある（有痛性外脛骨疑い・10〜13歳に多い）</span></label>
+    <label class="chk"><input type="checkbox" data-k="red.cavusFamily" class="rf"><span>家族歴のある両側性ハイアーチ・進行性の凹足（神経疾患の可能性）</span></label>
+  </fieldset>
+  <fieldset>
+    <legend>全身症状</legend>
+    <label class="chk"><input type="checkbox" data-k="red.nightPain" class="rf"><span>夜間痛・安静時痛・発熱をともなう</span></label>
+    <label class="chk"><input type="checkbox" data-k="red.neuro" class="rf"><span>神経症状（しびれの進行・筋萎縮・感覚の低下）・尖足拘縮</span></label>
+    <label class="chk"><input type="checkbox" data-k="red.trauma" class="rf"><span>外傷後の急性変形・原因不明の体重減少</span></label>
+    <label class="chk"><input type="checkbox" data-k="red.mtpInflame" class="rf"><span>母趾つけ根の関節の発赤・熱感・強い腫れ（痛風・感染・炎症性関節炎疑い）</span></label>
+  </fieldset>
+  <fieldset>
+    <legend>爪・皮膚・既往</legend>
+    <label class="chk"><input type="checkbox" data-k="red.nailPus" class="rf"><span>爪の化膿・肉芽・強い発赤や腫れ（蜂窩織炎リスク）</span></label>
+    <label class="chk"><input type="checkbox" data-k="red.nailFungus" class="rf"><span>爪の肥厚・濁り（爪白癬疑い → 真菌検査が先）</span></label>
+    <label class="chk"><input type="checkbox" data-k="red.diabetes" class="rf"><span>糖尿病・血流障害（足が冷たい/脈が弱い）・感覚障害がある</span></label>
+  </fieldset>
+  <div class="f"><span>メモ</span><textarea rows="2" data-k="red.note"></textarea></div>
+  <div id="rfLive" style="margin-top:12px"></div>
+  <div class="stepnav"><button class="btn" onclick="go(1)">← 戻る</button><button class="btn primary" onclick="go(3)">次へ：足部評価 →</button></div>
+</section>
+
+<!-- ======================= STEP 4 足部評価 ======================= -->
+<section class="step" data-step="3">
+  <h2>④ 足部の評価</h2>
+  <p class="lead">FPI-6・舟状骨落下・柔軟性テスト・足趾機能・変形の有無を測定します。未測定の項目は空欄のままで構いません。</p>
+
+  <fieldset>
+    <legend>FPI-6（足部姿勢指数）：各項目を −2〜+2 で採点</legend>
+    <div class="hint">−2=強い回外方向 ／ 0=中間 ／ +2=強い回内方向。合計：0〜+5 正常、+6〜+9 回内、+10以上 強い回内、−1〜−4 回外、−5以下 高度回外。</div>
+    <div class="fpi-grid" id="fpiGrid">
+      <div class="h">項目</div><div class="h">右</div><div class="h">左</div>
+    </div>
+    <div class="total-line" id="fpiTotals">合計：右 ─ ／ 左 ─</div>
+  </fieldset>
+
+  <fieldset>
+    <legend>アーチの高さ・柔軟性</legend>
+    <div class="grid g3">
+      <div class="f"><span>舟状骨落下（Navicular Drop）右</span><div class="inline"><input type="number" data-k="foot.ndR" step="0.5"><span class="unit">mm</span></div><small>5〜9 正常／10以上 回内／15超 著明</small></div>
+      <div class="f"><span>舟状骨落下 左</span><div class="inline"><input type="number" data-k="foot.ndL" step="0.5"><span class="unit">mm</span></div></div>
+      <div class="f"><span>つま先立ちテスト</span><select data-k="foot.toeRaise"><option value=""></option><option>踵が内反しアーチ出現（柔軟性）</option><option>アーチが出ない（硬性疑い）</option><option>未実施</option></select></div>
+      <div class="f"><span>Jack's test（母趾を反らす）</span><select data-k="foot.jack"><option value=""></option><option>アーチ出現（柔軟性）</option><option>アーチが出ない（硬性疑い）</option><option>未実施</option></select></div>
+      <div class="f"><span>Colemanブロックテスト（ハイアーチ疑いのみ）</span><select data-k="foot.coleman"><option value=""></option><option>後足部内反が矯正される（柔軟性）</option><option>矯正されない（硬性）</option><option>未実施</option></select></div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>足関節・足趾の機能</legend>
+    <div class="grid g3">
+      <div class="f"><span>膝壁テスト（荷重位背屈）右</span><div class="inline"><input type="number" data-k="foot.kwR" step="0.5"><span class="unit">cm</span></div><small>10cm未満で制限、左右差2cm以上も記録</small></div>
+      <div class="f"><span>膝壁テスト 左</span><div class="inline"><input type="number" data-k="foot.kwL" step="0.5"><span class="unit">cm</span></div></div>
+      <div class="f"><span>足趾把持力 右</span><div class="inline"><input type="number" data-k="foot.gripR" step="0.1"><span class="unit">kg</span></div><small>小4〜6平均 13.3±4.0kg／高齢者は体重比17%未満で転倒リスク増</small></div>
+      <div class="f"><span>足趾把持力 左</span><div class="inline"><input type="number" data-k="foot.gripL" step="0.1"><span class="unit">kg</span></div></div>
+      <div class="f"><span>浮き趾の分類（福山法）</span><select data-k="foot.floating"><option value=""></option><option>正常（全趾接地）</option><option>不完全接地</option><option>偽性浮き趾（意識すれば接地できる）</option><option>真性浮き趾（意識しても接地できない）</option><option>未評価</option></select></div>
+      <div class="f"><span>浮いている趾</span><input type="text" data-k="foot.floatingToes" placeholder="例）右 第5趾／両側 第4・5趾"></div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>外反母趾・爪の状態</legend>
+    <div class="grid g3">
+      <div class="f"><span>外反母趾（Manchester Scale）右</span><select data-k="foot.hvR"><option value=""></option><option>なし（G1）</option><option>軽度（G2）</option><option>中等度（G3）</option><option>重度（G4）</option></select></div>
+      <div class="f"><span>外反母趾 左</span><select data-k="foot.hvL"><option value=""></option><option>なし（G1）</option><option>軽度（G2）</option><option>中等度（G3）</option><option>重度（G4）</option></select></div>
+      <div class="f"><label class="chk" style="margin-top:20px"><input type="checkbox" data-k="foot.hvPain"><span>母趾つけ根の痛みあり</span></label></div>
+      <div class="f"><span>巻き爪</span><select data-k="foot.pincer"><option value=""></option><option>なし</option><option>軽度（弯曲あり・痛みなし）</option><option>中等度以上（弯曲強い・痛みあり）</option></select></div>
+      <div class="f"><label class="chk" style="margin-top:20px"><input type="checkbox" data-k="foot.ingrown"><span>陥入爪（食い込み・軽い炎症）あり</span></label></div>
+      <div class="f"><span>タコ・胼胝の位置</span><input type="text" data-k="foot.callus" placeholder="例）第2・3中足骨頭の下"></div>
+    </div>
+  </fieldset>
+  <div class="stepnav"><button class="btn" onclick="go(2)">← 戻る</button><button class="btn primary" onclick="go(4)">次へ：全身・動作評価 →</button></div>
+</section>
+
+<!-- ======================= STEP 5 全身評価 ======================= -->
+<section class="step" data-step="4">
+  <h2>⑤ 全身・動作の評価</h2>
+  <p class="lead">関節弛緩性・バランス・股関節と体幹の制御を評価します。痛みの主因は「足の形」より「動作と負荷量」です。</p>
+
+  <fieldset>
+    <legend>関節弛緩性</legend>
+    <div class="grid g3">
+      <div class="f"><span>Beightonスコア</span><div class="inline"><input type="number" data-k="whole.beighton" min="0" max="9"><span class="unit">/9点</span></div><small>小児は6点以上（女児7点以上）、成人は5点以上で全身弛緩</small></div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>バランス</legend>
+    <div class="grid g3">
+      <div class="f"><span>片脚立位 開眼 右</span><div class="inline"><input type="number" data-k="whole.olsOR" step="1"><span class="unit">秒（最大120）</span></div></div>
+      <div class="f"><span>片脚立位 開眼 左</span><div class="inline"><input type="number" data-k="whole.olsOL" step="1"><span class="unit">秒</span></div></div>
+      <div class="f"><span>片脚立位 閉眼（良い方）</span><div class="inline"><input type="number" data-k="whole.olsC" step="1"><span class="unit">秒</span></div><small>成人の目安 13〜20秒</small></div>
+      <div class="f"><span>ファンクショナルリーチ（FRT）</span><div class="inline"><input type="number" data-k="whole.frt" step="0.5"><span class="unit">cm</span></div><small>前方への重心移動能力（踵重心の機能的評価）</small></div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>片脚スクワット・動作</legend>
+    <div class="grid g3">
+      <div class="f"><span>片脚スクワット（Crossley視覚評価）</span><select data-k="whole.squat"><option value=""></option><option>good</option><option>fair</option><option>poor</option><option>未実施</option></select></div>
+      <div class="f"><span>FPPA 右（動画計測）</span><div class="inline"><input type="number" data-k="whole.fppaR" step="1"><span class="unit">°</span></div><small>7〜13° 正常／13°超 過剰（膝の内入り）</small></div>
+      <div class="f"><span>FPPA 左</span><div class="inline"><input type="number" data-k="whole.fppaL" step="1"><span class="unit">°</span></div></div>
+    </div>
+    <div style="margin-top:8px">
+      <label class="chk"><input type="checkbox" data-k="whole.kneeIn"><span>スクワット・着地で膝が第2趾より内側に入る（動的膝外反）</span></label>
+      <label class="chk"><input type="checkbox" data-k="whole.trunkSway"><span>体幹が横に揺れる・骨盤が落ちる</span></label>
+      <label class="chk"><input type="checkbox" data-k="whole.lumbarExt"><span>腰を反らせて立つ・動くくせがある（腰椎過伸展）</span></label>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>股関節・体幹</legend>
+    <div class="grid g3">
+      <div class="f"><span>修正Thomasテスト（腸腰筋）</span><select data-k="whole.thomas"><option value=""></option><option>正常</option><option>タイト（大腿が水平より上がる）</option><option>未実施</option></select></div>
+      <div class="f"><span>Trendelenburg（30秒）</span><select data-k="whole.trend"><option value=""></option><option>陰性</option><option>陽性（骨盤が落ちる）</option><option>未実施</option></select></div>
+      <div class="f"><span>サイドプランク保持</span><div class="inline"><input type="number" data-k="whole.sidePlank" step="1"><span class="unit">秒</span></div></div>
+      <div class="f"><span>ヒップヒンジ（股関節おじぎ）</span><select data-k="whole.hinge"><option value=""></option><option>可能（骨盤と腰を分離できる）</option><option>不可（腰から曲がる）</option><option>未実施</option></select></div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>歩行・走行の観察（スマホ動画：後方・側方 各10秒）</legend>
+    <div style="margin-bottom:8px">
+      <label class="chk"><input type="checkbox" data-k="whole.gaitPron"><span>接地で踵が外に倒れる量が大きい（過回内）</span></label>
+      <label class="chk"><input type="checkbox" data-k="whole.gaitNoReturn"><span>蹴り出しでアーチが戻らない・母趾に体重が乗らない</span></label>
+      <label class="chk"><input type="checkbox" data-k="whole.gaitLoud"><span>着地音が大きい（ドスン着地＝衝撃吸収不良）</span></label>
+      <label class="chk"><input type="checkbox" data-k="whole.gaitToeOut"><span>つま先が外を向く・膝が内に入る（knee-in toe-out）</span></label>
+    </div>
+    <div class="f"><span>その他の観察メモ</span><textarea rows="2" data-k="whole.gaitNote"></textarea></div>
+  </fieldset>
+  <div class="stepnav"><button class="btn" onclick="go(3)">← 戻る</button><button class="btn primary" onclick="go(5)">分析結果を見る →</button></div>
+</section>
+
+<!-- ======================= STEP 6 分析 ======================= -->
+<section class="step" data-step="5">
+  <h2>⑥ 分析結果</h2>
+  <p class="lead">入力されたデータから、年齢基準に照らした判定・タイプ分類・原因の3軸分析を自動生成します。</p>
+  <div id="analysisOut"><div class="hint">基本情報（年齢）を入力すると分析が表示されます。</div></div>
+  <div class="stepnav"><button class="btn" onclick="go(4)">← 戻る</button><button class="btn primary" onclick="go(6)">次へ：プログラム作成 →</button></div>
+</section>
+
+<!-- ======================= STEP 7 プログラム ======================= -->
+<section class="step" data-step="6">
+  <h2>⑦ 12週プログラムと自宅メニュー</h2>
+  <p class="lead">年齢帯と評価結果から標準プログラム（案B：足＋股関節・体幹）を自動提案します。患者様用シートに載せる自宅メニューを選択してください（3〜5種目推奨：種目が多いと続きません）。</p>
+  <div id="programOut"></div>
+  <fieldset>
+    <legend>次回の再評価</legend>
+    <div class="grid g3">
+      <div class="f"><span>次回再評価日（4週後が目安）</span><input type="date" data-k="plan.nextDate"></div>
+      <div class="f"><span>院での頻度</span><select data-k="plan.freq"><option>週1回</option><option>週2回</option><option>2週に1回</option><option>その他</option></select></div>
+    </div>
+    <div class="f" style="margin-top:8px"><span>治療方針メモ（施術内容・徒手アプローチなど）</span><textarea rows="3" data-k="plan.note" placeholder="例）第1MTP牽引＋背屈モビライゼーション、距骨後方滑り、母趾外転筋リリース→即時にTSOへ接続"></textarea></div>
+  </fieldset>
+  <div class="stepnav"><button class="btn" onclick="go(5)">← 戻る</button><button class="btn primary" onclick="go(7)">資料を作成 →</button></div>
+</section>
+
+<!-- ======================= STEP 8 資料出力 ======================= -->
+<section class="step" data-step="7">
+  <h2>⑧ 資料出力（2枚）</h2>
+  <p class="lead">「治療家用」（院内カルテ・全データと根拠）と「患者様用」（お渡し用・わかりやすい言葉と宿題シート）の2枚を作成します。印刷またはPDF保存してお使いください。</p>
+  <div class="hint">claude.ai上でお使いの場合：印刷ボタンを押すと<b>印刷用ファイルが保存</b>されます（保存の確認が出たら「保存」を押してください）。保存されたファイルを開くと印刷画面が表示され、そこから紙への印刷もPDF保存もできます。</div>
+  <div class="inline" style="margin-bottom:16px">
+    <button class="btn primary" id="btnPrintT">🖨 治療家用を印刷</button>
+    <button class="btn primary" id="btnPrintP">🖨 患者様用を印刷</button>
+    <button class="btn" id="btnPrintBoth">両方印刷</button>
+    <button class="btn ghost" id="btnRefreshSheets">プレビュー更新</button>
+  </div>
+  <h3 style="margin:10px 0 6px;color:var(--accent-ink)">治療家用（院内）</h3>
+  <div class="sheetwrap"><div class="sheet" id="prevT"></div></div>
+  <h3 style="margin:10px 0 6px;color:var(--accent-ink)">患者様用（お渡し）</h3>
+  <div class="sheetwrap"><div class="sheet sheet-p" id="prevP"></div></div>
+  <div class="stepnav"><button class="btn" onclick="go(6)">← 戻る</button><span></span></div>
+</section>
+
+</main>
+
+<footer class="appfoot noprint">
+  本アプリは院内の評価記録・患者教育資料の作成を支援するツールであり、医学的診断・治療を代替するものではありません。レッドフラッグ該当時は医療機関への紹介を優先してください。根拠：回内足・外反母趾・巻き爪・踵重心/浮き趾/ハイアーチ エビデンスレポート（きしもとカラダcondiTion 2026）。
+</footer>
+
+<!-- print zones -->
+<div class="printzone" id="pz-therapist"><div class="sheet" id="printT"></div></div>
+<div class="printzone" id="pz-patient"><div class="sheet sheet-p" id="printP"></div></div>
+
+<script>
+"use strict";
+/* ================================================================
+   足部機能分析ラボ — きしもとカラダcondiTion
+   単体・依存ゼロの足部分析アプリ（予約管理システムとは独立）
+   ================================================================ */
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const num=v=>{const n=parseFloat(v);return Number.isFinite(n)?n:null};
+
+/* ---------- steps ---------- */
+const STEPS=["① 基本情報","② 症状・習慣","③ レッドフラッグ","④ 足部評価","⑤ 全身・動作","⑥ 分析","⑦ プログラム","⑧ 資料出力"];
+const nav=$("#stepNav");
+STEPS.forEach((t,i)=>{const b=document.createElement("button");b.textContent=t;b.onclick=()=>go(i);nav.appendChild(b)});
+function go(i){
+  $$("section.step").forEach(s=>s.classList.toggle("on",+s.dataset.step===i));
+  $$("#stepNav button").forEach((b,j)=>b.classList.toggle("on",j===i));
+  if(i===5) renderAnalysis();
+  if(i===6) renderProgram();
+  if(i===7) renderSheets();
+  window.scrollTo({top:0});
+}
+
+/* ---------- pain sites ---------- */
+const PAIN_SITES=["母趾・足の指","足裏・土踏まず","かかと","足首","すね（シンスプリント部）","ふくらはぎ","膝（内側・前面）","股関節","腰","首・肩","爪（巻き爪・食い込み）"];
+$("#painSites").innerHTML=PAIN_SITES.map((s,i)=>`<label class="chk"><input type="checkbox" data-k="pain.s${i}"><span>${s}</span></label>`).join("");
+
+/* ---------- FPI-6 grid ---------- */
+const FPI_ITEMS=["① 距骨頭の触知","② 外果の上下のカーブ","③ 踵骨の傾き（内反/外反）","④ 距舟関節部の膨らみ","⑤ 内側アーチの形状","⑥ 前足部の外転（見える趾の数）"];
+const fpiGrid=$("#fpiGrid");
+FPI_ITEMS.forEach((t,i)=>{
+  const opts=`<option value=""></option>`+[-2,-1,0,1,2].map(v=>`<option value="${v}">${v>0?"+"+v:v}</option>`).join("");
+  fpiGrid.insertAdjacentHTML("beforeend",
+    `<div>${t}</div><div><select class="fpiR" data-k="foot.fpiR${i}">${opts}</select></div><div><select class="fpiL" data-k="foot.fpiL${i}">${opts}</select></div>`);
+});
+function fpiTotal(side){
+  const els=$$(side==="R"?".fpiR":".fpiL").filter(e=>e.value!=="");
+  if(!els.length) return null;
+  return {sum:els.reduce((a,e)=>a+ +e.value,0),n:els.length};
+}
+function updateFpi(){
+  const r=fpiTotal("R"),l=fpiTotal("L");
+  const f=t=>t?`${t.sum>0?"+"+t.sum:t.sum}${t.n<6?`（${t.n}/6項目）`:""}`:"─";
+  $("#fpiTotals").textContent=`合計：右 ${f(r)} ／ 左 ${f(l)}`;
+}
+document.addEventListener("input",e=>{
+  if(e.target.matches(".fpiR,.fpiL")) updateFpi();
+  if(e.target.matches('[data-k="basic.height"],[data-k="basic.weight"]')) updateBmi();
+  if(e.target.matches(".rf")) updateRfLive();
+});
+function updateBmi(){
+  const h=num($('[data-k="basic.height"]').value),w=num($('[data-k="basic.weight"]').value);
+  $("#bmiOut").textContent=(h&&w)?`BMI ${(w/((h/100)**2)).toFixed(1)}`:"";
+}
+function updateRfLive(){
+  const n=$$(".rf:checked").length;
+  $("#rfLive").innerHTML=n?`<div class="alert crit"><b>レッドフラッグ ${n}件該当。</b>運動プログラムの開始前に医療機関（整形外科・皮膚科）への紹介を優先してください。</div>`
+    :`<div class="alert good">レッドフラッグ該当なし。評価・プログラムに進めます。</div>`;
+}
+
+/* ---------- collect / restore ---------- */
+function setPath(o,p,v){const ks=p.split(".");let c=o;for(let i=0;i<ks.length-1;i++){c[ks[i]]=c[ks[i]]||{};c=c[ks[i]];}c[ks.at(-1)]=v;}
+function getPath(o,p){return p.split(".").reduce((a,k)=>a?.[k],o)}
+function collect(){
+  const rec={};
+  $$("[data-k]").forEach(el=>{
+    let v;
+    if(el.type==="checkbox") v=el.checked;
+    else v=el.value;
+    setPath(rec,el.dataset.k,v);
+  });
+  // home menu selection
+  rec.plan=rec.plan||{};
+  rec.plan.home=$$(".homechk:checked").map(c=>c.value);
+  return rec;
+}
+function restore(rec){
+  $$("[data-k]").forEach(el=>{
+    const v=getPath(rec,el.dataset.k);
+    if(el.type==="checkbox") el.checked=!!v;
+    else el.value=v??"";
+  });
+  updateFpi();updateBmi();updateRfLive();
+  pendingHome=rec.plan?.home||null;
+}
+let pendingHome=null;
+
+/* ================================================================
+   分析ロジック（4つのエビデンスレポートに基づく判定）
+   ================================================================ */
+function ageBand(a){
+  if(a==null) return null;
+  if(a<13) return "elem";       // 小学生（〜12歳）
+  if(a<19) return "teen";       // 中高生
+  if(a<65) return "adult";      // 成人
+  return "senior";              // 高齢者（65歳〜）
+}
+const BAND_LABEL={elem:"小学生（6〜12歳）",teen:"中高生（13〜18歳）",adult:"成人（19〜64歳）",senior:"高齢者（65歳〜）"};
+
+function judgeFpi(sum){
+  if(sum==null) return null;
+  if(sum>=10) return {lv:"crit",t:"強い回内"};
+  if(sum>=6)  return {lv:"warn",t:"回内"};
+  if(sum>=0)  return {lv:"good",t:"正常範囲"};
+  if(sum>=-4) return {lv:"warn",t:"回外（ハイアーチ傾向）"};
+  return {lv:"crit",t:"高度回外"};
+}
+function judgeNd(v){
+  if(v==null) return null;
+  if(v>15) return {lv:"crit",t:"著明な落ち込み"};
+  if(v>=10) return {lv:"warn",t:"回内（10mm以上）"};
+  if(v>=5) return {lv:"good",t:"正常（5〜9mm）"};
+  return {lv:"good",t:"落ち込み小"};
+}
+function beightonCut(age,sex){ return age!=null&&age<18 ? (sex==="女性"?7:6) : 5; }
+function judgeBeighton(v,age,sex){
+  if(v==null) return null;
+  const cut=beightonCut(age,sex);
+  return v>=cut?{lv:"warn",t:`全身弛緩あり（基準 ${cut}点以上）`}:{lv:"good",t:`基準内（${cut}点未満）`};
+}
+function olsNorm(age){
+  if(age==null) return null;
+  if(age<=5) return {min:8,label:"8秒以上（4〜5歳の下限目安）"};
+  if(age<=7) return {min:15,label:"15秒以上（目安）"};
+  if(age<=9) return {min:20,label:"20秒以上（8〜9歳）"};
+  if(age<=11) return {min:48,label:"48秒以上（10〜11歳）"};
+  if(age<65) return {min:60,label:"60秒以上（12歳〜は120秒が中央値）"};
+  return {min:30,label:"30秒以上（高齢者の目安）"};
+}
+function judgeOls(v,age){
+  if(v==null) return null;
+  const n=olsNorm(age); if(!n) return null;
+  return v>=n.min?{lv:"good",t:"年齢基準に到達"}:{lv:"warn",t:`基準未満（${n.label}）`};
+}
+function judgeFppa(v){
+  if(v==null) return null;
+  return v>13?{lv:"warn",t:"過剰（膝の内入り）"}:{lv:"good",t:"正常（7〜13°）"};
+}
+function judgeKw(v){
+  if(v==null) return null;
+  return v<10?{lv:"warn",t:"背屈制限（10cm未満）"}:{lv:"good",t:"正常"};
+}
+function judgeGrip(v,age,weight){
+  if(v==null) return null;
+  if(age!=null&&age>=65&&weight){
+    const pct=v/weight*100;
+    return pct<17?{lv:"warn",t:`体重比${pct.toFixed(0)}%（17%未満：転倒リスク増）`}:{lv:"good",t:`体重比${pct.toFixed(0)}%`};
+  }
+  if(age!=null&&age>=9&&age<=12){
+    return v<9.3?{lv:"warn",t:"同年代平均−1SD未満（13.3±4.0kg）"}:{lv:"good",t:"同年代平均範囲"};
+  }
+  if(weight){const pct=v/weight*100;return {lv:"na",t:`体重比${pct.toFixed(0)}%（経過比較用）`};}
+  return {lv:"na",t:"経過比較用に記録"};
+}
+
+function analyze(rec){
+  const A={};
+  const age=num(rec.basic?.age);
+  A.age=age; A.band=ageBand(age);
+  A.name=rec.basic?.name||"";
+  A.weight=num(rec.basic?.weight);
+  // red flags
+  const RF_LABELS={rigidFlat:"硬性扁平足疑い（つま先立ち/Jack'sでアーチが出ない）",unilateral:"片側性・急速進行する変形",lateralPain:"外側足部痛＋反復捻挫（足根骨癒合疑い）",navBump:"有痛性外脛骨疑い（舟状骨内側の骨隆起＋圧痛）",cavusFamily:"家族歴のある両側性ハイアーチ（神経疾患の可能性）",nightPain:"夜間痛・安静時痛・発熱",neuro:"神経症状・尖足拘縮",trauma:"外傷後の急性変形・原因不明の体重減少",mtpInflame:"第1MTP関節の発赤・熱感（痛風等疑い）",nailPus:"爪の化膿・肉芽・強い発赤（蜂窩織炎リスク)",nailFungus:"爪白癬疑い（肥厚・濁り）→真菌検査が先",diabetes:"糖尿病・血流障害・感覚障害"};
+  A.redflags=Object.entries(RF_LABELS).filter(([k])=>rec.red?.[k]).map(([,v])=>v);
+  A.hasRF=A.redflags.length>0;
+  // foot values
+  A.fpiR=fpiFromRec(rec,"R"); A.fpiL=fpiFromRec(rec,"L");
+  A.ndR=num(rec.foot?.ndR); A.ndL=num(rec.foot?.ndL);
+  A.kwR=num(rec.foot?.kwR); A.kwL=num(rec.foot?.kwL);
+  A.gripR=num(rec.foot?.gripR); A.gripL=num(rec.foot?.gripL);
+  A.beighton=num(rec.whole?.beighton);
+  A.olsO=Math.min(...[num(rec.whole?.olsOR),num(rec.whole?.olsOL)].filter(v=>v!=null).concat([Infinity]));
+  if(!Number.isFinite(A.olsO)) A.olsO=null;
+  A.fppa=Math.max(...[num(rec.whole?.fppaR),num(rec.whole?.fppaL)].filter(v=>v!=null).concat([-Infinity]));
+  if(!Number.isFinite(A.fppa)) A.fppa=null;
+  A.nrs={rest:num(rec.pain?.nrsRest),walk:num(rec.pain?.nrsWalk),sport:num(rec.pain?.nrsSport)};
+  const maxNrs=Math.max(...Object.values(A.nrs).filter(v=>v!=null).concat([0]));
+  A.maxNrs=maxNrs;
+  A.symptomatic=maxNrs>0 || PAIN_SITES.some((_,i)=>rec.pain?.["s"+i]);
+  A.painList=PAIN_SITES.filter((_,i)=>rec.pain?.["s"+i]);
+  // judgments
+  const worstFpi=[A.fpiR,A.fpiL].filter(v=>v!=null).sort((a,b)=>Math.abs(b)-Math.abs(a))[0]??null;
+  A.worstFpi=worstFpi;
+  A.jFpi=judgeFpi(worstFpi);
+  const worstNd=Math.max(...[A.ndR,A.ndL].filter(v=>v!=null).concat([-Infinity]));
+  A.worstNd=Number.isFinite(worstNd)?worstNd:null;
+  A.jNd=judgeNd(A.worstNd);
+  A.jBei=judgeBeighton(A.beighton,age,rec.basic?.sex);
+  A.jOls=judgeOls(A.olsO,age);
+  A.jFppa=judgeFppa(A.fppa);
+  const worstKw=Math.min(...[A.kwR,A.kwL].filter(v=>v!=null).concat([Infinity]));
+  A.worstKw=Number.isFinite(worstKw)?worstKw:null;
+  A.jKw=judgeKw(A.worstKw);
+  const worstGrip=Math.min(...[A.gripR,A.gripL].filter(v=>v!=null).concat([Infinity]));
+  A.worstGrip=Number.isFinite(worstGrip)?worstGrip:null;
+  A.jGrip=judgeGrip(A.worstGrip,age,A.weight);
+  A.kneeIn=!!rec.whole?.kneeIn||(A.fppa!=null&&A.fppa>13)||rec.whole?.squat==="poor";
+  A.laxity=A.jBei?.lv==="warn";
+  // arch direction
+  A.pronated=(worstFpi!=null&&worstFpi>=6)||(A.worstNd!=null&&A.worstNd>=10)||!!rec.whole?.gaitPron;
+  A.supinated=worstFpi!=null&&worstFpi<=-1;
+  A.rigidCavus=rec.foot?.coleman==="矯正されない（硬性）";
+  // HV
+  const hvMap={"なし（G1）":1,"軽度（G2）":2,"中等度（G3）":3,"重度（G4）":4};
+  A.hv=Math.max(hvMap[rec.foot?.hvR]||0,hvMap[rec.foot?.hvL]||0);
+  A.hvPain=!!rec.foot?.hvPain;
+  // nail
+  A.pincer=rec.foot?.pincer&&rec.foot.pincer!=="なし";
+  A.pincerSevere=rec.foot?.pincer==="中等度以上（弯曲強い・痛みあり）";
+  A.ingrown=!!rec.foot?.ingrown;
+  // floating toe
+  A.floating=rec.foot?.floating||"";
+  // load
+  const hw=num(rec.basic?.hoursWeek);
+  A.overload=(hw!=null&&age!=null&&hw>age);
+  A.hoursWeek=hw;
+  A.restDays=num(rec.basic?.restDays);
+  // ---- 回内足タイプ分類（A/B/C）----
+  if(A.hasRF) A.footType={code:"C",label:"タイプC：症候性・硬性／レッドフラッグ",policy:"整形外科等へ紹介。整体での「矯正」は禁忌。運動プログラムは紹介先の判断後に。"};
+  else if(A.pronated){
+    if(age!=null&&age<8&&!A.symptomatic&&rec.foot?.toeRaise!=="アーチが出ない（硬性疑い）"&&!A.laxity)
+      A.footType={code:"A",label:"タイプA：生理的（発達途中の正常）",policy:"治療しない。経過観察＋裸足遊び・多様な運動の助言。6か月ごとに確認。装具不要（Cochrane 2022）。"};
+    else
+      A.footType={code:"B",label:"タイプB：弛緩・近位制御不良型",policy:"案B（足部内在筋＋股関節・体幹）8〜12週。週3回以上＋毎日3分の宿題。効果判定は8週後。"};
+  }
+  else if(A.supinated) A.footType={code:"S",label:"回外足・ハイアーチ傾向",policy:A.rigidCavus?"硬性凹足：医療機関・装具連携を優先（運動でアーチを下げる根拠なし）。":"柔軟性：衝撃吸収の改善（ふくらはぎ柔軟性・着地の質）＋足趾機能。症状があれば装具連携も案内。"};
+  else A.footType={code:"N",label:"アーチ形態は中間・正常範囲",policy:"形よりも「足趾機能・バランス・動作の質」を目標に機能を育てる。"};
+  // ---- 3軸分析 ----
+  A.axis={structure:[],movement:[],habit:[]};
+  if(A.laxity)A.axis.structure.push(`関節弛緩性が高い（Beighton ${A.beighton}/9）— 靭帯で止まらない分、筋で「止める力」を育てる`);
+  if(A.pronated)A.axis.structure.push(`回内足（FPI ${fmtSigned(A.worstFpi)}／舟状骨落下 ${A.worstNd??"─"}mm）`);
+  if(A.supinated)A.axis.structure.push(`ハイアーチ傾向（FPI ${fmtSigned(A.worstFpi)}）— 衝撃を吸収しにくい硬い足`);
+  if(A.hv>=2)A.axis.structure.push(`外反母趾 ${["","G1","G2 軽度","G3 中等度","G4 重度"][A.hv]}${A.hvPain?"（痛みあり）":""}— 母趾外転筋の機能低下`);
+  if(A.pincer)A.axis.structure.push("巻き爪 — 母趾に体重が乗らない歩き方のサイン");
+  if(A.jKw?.lv==="warn")A.axis.structure.push(`足関節背屈の制限（膝壁テスト ${A.worstKw}cm）`);
+  if(A.kneeIn)A.axis.movement.push(`着地・スクワットで膝が内に入る（動的膝外反${A.fppa!=null?`：FPPA ${A.fppa}°`:""}）`);
+  if(rec.whole?.trunkSway)A.axis.movement.push("体幹の側方動揺・骨盤の落ち込み");
+  if(rec.whole?.lumbarExt)A.axis.movement.push("腰椎過伸展での代償（反り腰で「ロック」して立つ）");
+  if(rec.whole?.gaitNoReturn)A.axis.movement.push("蹴り出しで母趾に体重が乗らない（浮き趾様の荷重パターン）");
+  if(rec.whole?.gaitLoud)A.axis.movement.push("着地音が大きい＝衝撃吸収不良");
+  if(A.floating.includes("真性"))A.axis.movement.push("真性浮き趾（構造化）— 足趾の可動性改善から開始");
+  else if(A.floating.includes("偽性"))A.axis.movement.push("偽性浮き趾 — 運動学習・意識づけで改善が見込める");
+  if(A.jOls?.lv==="warn")A.axis.movement.push(`片脚立位が年齢基準未満（${A.olsO}秒）`);
+  if(rec.whole?.hinge==="不可（腰から曲がる）")A.axis.movement.push("ヒップヒンジ不可 — 骨盤と腰椎の分離運動が必要");
+  if(A.overload)A.axis.habit.push(`週練習時間 ${A.hoursWeek}時間 ＞ 年齢 — 過使用障害リスク約2倍（Jayanthi 2015）`);
+  if(A.restDays!=null&&A.restDays<1)A.axis.habit.push("完全休養日がない — 週1日以上を推奨");
+  if(rec.basic?.singleSport)A.axis.habit.push("単一種目への専門化 — 多様な運動・自由遊びを追加");
+  if(rec.habits?.wSitting)A.axis.habit.push("W座りのくせ（扁平足の危険因子：Chen 2011）");
+  if(rec.habits?.shoeFit==="きつい・小さい")A.axis.habit.push("靴のつま先がきつい（外反母趾リスク約2.4〜2.7倍）");
+  if(rec.habits?.heelCounter==="柔らかい・つぶれている")A.axis.habit.push("ヒールカウンターが柔らかい靴");
+  if(rec.habits?.heels)A.axis.habit.push("ヒール5cm以上の常用（累積年数がリスク）");
+  if(rec.habits?.nailCut==="角を落とす・深爪ぎみ")A.axis.habit.push("深爪・角の切り落とし（陥入爪リスク約7倍）→スクエアカットへ");
+  if(rec.habits?.barefoot==="ほぼない")A.axis.habit.push("裸足で過ごす機会が少ない");
+  if(rec.habits?.standing)A.axis.habit.push("長時間の立ち仕事 — 60〜90分ごとにリセット運動を");
+  // ---- 8週間の目標 ----
+  A.goals=[];
+  if(A.worstNd!=null&&A.worstNd>=10)A.goals.push(`舟状骨落下 −2mm以上（${A.worstNd}mm → ${A.worstNd-2}mm以下）`);
+  if(A.maxNrs>=2)A.goals.push(`痛み NRS −2以上（最大${A.maxNrs} → ${Math.max(0,A.maxNrs-2)}以下）`);
+  if(A.fppa!=null&&A.fppa>13)A.goals.push(`片脚スクワット FPPA 13°未満（現在 ${A.fppa}°）`);
+  else if(A.kneeIn)A.goals.push("片脚スクワットで膝が第2趾より外に出る");
+  if(A.jOls?.lv==="warn")A.goals.push(`片脚立位 ${olsNorm(age).label}に到達`);
+  if(A.jGrip?.lv==="warn")A.goals.push("足趾把持力の向上（前回値＋10%目安）");
+  if(A.pincer)A.goals.push("歩行時に母趾へ体重を乗せる（爪の生え替わりは6〜12か月単位で経過を見る）");
+  A.goals.push("宿題を週3回以上継続（効果の用量反応ライン）");
+  return A;
+}
+function fpiFromRec(rec,side){
+  let sum=0,n=0;
+  for(let i=0;i<6;i++){const v=rec.foot?.[`fpi${side}${i}`];if(v!==""&&v!=null){sum+=+v;n++;}}
+  return n?sum:null;
+}
+const fmtSigned=v=>v==null?"─":(v>0?"+"+v:String(v));
+
+/* ---------- gauge (SVG band scale) ---------- */
+function gauge(opts){
+  // opts: {min,max,bands:[{from,to,cls}],value,width}
+  const W=opts.width||260,H=30,pad=4;
+  const x=v=>pad+(Math.min(Math.max(v,opts.min),opts.max)-opts.min)/(opts.max-opts.min)*(W-2*pad);
+  const COLORS={good:"var(--good-bg)",warn:"var(--warn-bg)",crit:"var(--crit-bg)"};
+  const PCOLORS={good:"#E2F1E7",warn:"#F7ECD9",crit:"#F9E4E2"};
+  const useP=opts.paper;
+  let s=`<svg class="gauge-svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="scale">`;
+  opts.bands.forEach(b=>{
+    s+=`<rect x="${x(b.from)}" y="10" width="${x(b.to)-x(b.from)}" height="10" rx="2" fill="${useP?PCOLORS[b.cls]:COLORS[b.cls]}"/>`;
+  });
+  s+=`<line x1="${pad}" y1="20" x2="${W-pad}" y2="20" stroke="${useP?"#B9C6C1":"var(--line)"}" stroke-width="1"/>`;
+  if(opts.value!=null){
+    const vx=x(opts.value);
+    s+=`<polygon points="${vx-5},2 ${vx+5},2 ${vx},10" fill="${useP?"#0E7368":"var(--accent)"}"/>`;
+    s+=`<line x1="${vx}" y1="9" x2="${vx}" y2="21" stroke="${useP?"#0E7368":"var(--accent)"}" stroke-width="2"/>`;
+  }
+  s+=`</svg>`;
+  return s;
+}
+function gaugeRow(label,valueText,g,judge,paper){
+  const cls=judge?{good:"good",warn:"warn",crit:"crit",na:"na"}[judge.lv]:"na";
+  const tag=paper
+    ?`<span class="tag t-${cls}">${judge?esc(judge.t):"未測定"}</span>`
+    :`<span class="badge b-${cls}">${judge?esc(judge.t):"未測定"}</span>`;
+  return `<div class="gaugewrap"><div class="gl"><span>${esc(label)}</span><b>${esc(valueText)}</b></div>${g}<div>${tag}</div></div>`;
+}
+
+/* ================================================================
+   分析画面の描画
+   ================================================================ */
+function renderAnalysis(){
+  const rec=collect(),A=analyze(rec);
+  const out=$("#analysisOut");
+  if(A.age==null){out.innerHTML=`<div class="hint">①基本情報で年齢を入力してください。年齢によって判定基準が変わります。</div>`;return;}
+  let h="";
+  // referral
+  if(A.hasRF){
+    h+=`<div class="alert crit"><b>⚠ 医療機関への紹介を優先（レッドフラッグ ${A.redflags.length}件）</b><ul style="margin:6px 0 0;padding-left:20px">${A.redflags.map(r=>`<li>${esc(r)}</li>`).join("")}</ul></div>`;
+  } else {
+    h+=`<div class="alert good">レッドフラッグ該当なし — 評価・運動プログラムの適応です。</div>`;
+  }
+  // type
+  h+=`<div class="card"><h3>足部タイプ判定 <span class="badge ${A.footType.code==="C"?"b-crit":A.footType.code==="B"||A.footType.code==="S"?"b-warn":"b-good"}">${esc(A.footType.label)}</span></h3>
+      <p style="margin:4px 0">${esc(A.footType.policy)}</p>
+      <p style="margin:4px 0;color:var(--ink2);font-size:12.5px">年齢帯：${BAND_LABEL[A.band]}${A.symptomatic?`／症状あり（痛み部位：${esc(A.painList.join("・")||"記載")}、NRS最大 ${A.maxNrs}）`:"／現在は無症状"}</p></div>`;
+  // gauges
+  h+=`<div class="card"><h3>主要指標</h3>`;
+  h+=gaugeRow("FPI-6（左右の悪い方）",fmtSigned(A.worstFpi),
+    gauge({min:-12,max:12,bands:[{from:-12,to:-5,cls:"crit"},{from:-5,to:-1,cls:"warn"},{from:-1,to:6,cls:"good"},{from:6,to:10,cls:"warn"},{from:10,to:12,cls:"crit"}],value:A.worstFpi}),A.jFpi);
+  h+=gaugeRow("舟状骨落下（悪い方）",A.worstNd!=null?A.worstNd+" mm":"─",
+    gauge({min:0,max:20,bands:[{from:0,to:5,cls:"good"},{from:5,to:10,cls:"good"},{from:10,to:15,cls:"warn"},{from:15,to:20,cls:"crit"}],value:A.worstNd}),A.jNd);
+  h+=gaugeRow("Beightonスコア",A.beighton!=null?A.beighton+" /9":"─",
+    gauge({min:0,max:9,bands:[{from:0,to:beightonCut(A.age,rec.basic?.sex),cls:"good"},{from:beightonCut(A.age,rec.basic?.sex),to:9,cls:"warn"}],value:A.beighton}),A.jBei);
+  h+=gaugeRow("片脚立位 開眼（悪い方）",A.olsO!=null?A.olsO+" 秒":"─",
+    gauge({min:0,max:120,bands:[{from:0,to:olsNorm(A.age)?.min??30,cls:"warn"},{from:olsNorm(A.age)?.min??30,to:120,cls:"good"}],value:A.olsO}),A.jOls);
+  if(A.fppa!=null) h+=gaugeRow("FPPA（悪い方）",A.fppa+" °",
+    gauge({min:0,max:30,bands:[{from:0,to:13,cls:"good"},{from:13,to:30,cls:"warn"}],value:A.fppa}),A.jFppa);
+  h+=`</div>`;
+  // full table
+  h+=`<div class="card"><h3>測定値と判定の一覧</h3><div class="scroll"><table class="tbl">
+    <tr><th>項目</th><th>右</th><th>左</th><th>基準</th><th>判定</th></tr>
+    ${trow("FPI-6",fmtSigned(A.fpiR),fmtSigned(A.fpiL),"0〜+5 正常／+6〜+9 回内／+10〜 強い回内／−1〜−4 回外",A.jFpi)}
+    ${trow("舟状骨落下(mm)",A.ndR,A.ndL,"5〜9 正常／10以上 回内／15超 著明",A.jNd)}
+    ${trow("膝壁テスト(cm)",A.kwR,A.kwL,"10cm未満で背屈制限／左右差2cm以上に注意",A.jKw)}
+    ${trow("足趾把持力(kg)",A.gripR,A.gripL,A.age>=65?"体重比17%未満で転倒リスク増":"小4〜6平均 13.3±4.0kg",A.jGrip)}
+    ${trow("Beighton(/9)",A.beighton,"─",`${A.age<18?"小児6点以上（女児7点以上）":"成人5点以上"}で全身弛緩`,A.jBei)}
+    ${trow("片脚立位 開眼(秒)",num(rec.whole?.olsOR),num(rec.whole?.olsOL),olsNorm(A.age)?.label??"─",A.jOls)}
+    ${trow("FPPA(°)",num(rec.whole?.fppaR),num(rec.whole?.fppaL),"7〜13 正常／13超 過剰",A.jFppa)}
+    ${trow("浮き趾",esc(A.floating||"─"),"",`真性=可動性から／偽性=運動学習から`,A.floating?{lv:A.floating.includes("真性")?"warn":A.floating.includes("偽性")?"warn":"good",t:A.floating.includes("正常")?"問題なし":"要介入"}:null)}
+    ${trow("外反母趾",esc(rec.foot?.hvR||"─"),esc(rec.foot?.hvL||"─"),"G2以上から母趾外転筋の萎縮が始まる",A.hv>=2?{lv:A.hv>=3?"crit":"warn",t:A.hv>=3?"中等度以上":"軽度"}:A.hv===1?{lv:"good",t:"なし"}:null)}
+    ${trow("巻き爪",esc(rec.foot?.pincer||"─"),"","足趾荷重の回復が再発予防の土台",A.pincer?{lv:A.pincerSevere?"crit":"warn",t:A.pincerSevere?"装具連携を検討":"セルフケア指導"}:rec.foot?.pincer==="なし"?{lv:"good",t:"なし"}:null)}
+  </table></div></div>`;
+  // 3-axis
+  const axisBlock=(t,arr)=>`<td style="width:33%"><b>${t}</b><ul style="margin:4px 0;padding-left:16px">${arr.length?arr.map(x=>`<li>${esc(x)}</li>`).join(""):"<li style='color:var(--ink3)'>特記なし</li>"}</ul></td>`;
+  h+=`<div class="card"><h3>原因の3軸分析（構造・動作・習慣）</h3>
+    <div class="scroll"><table class="tbl"><tr>${axisBlock("構造（変えにくい）",A.axis.structure)}${axisBlock("動作（最も変えられる）",A.axis.movement)}${axisBlock("習慣（環境・負荷）",A.axis.habit)}</tr></table></div>
+    <p style="font-size:12px;color:var(--ink2);margin:6px 0 0">介入は可逆性の高い「動作・習慣」から。骨配列（構造）を変える根拠はなく、目標は「機能を育てて痛みと再発を減らす」こと。</p></div>`;
+  // goals
+  h+=`<div class="card"><h3>8週間の目標（効果判定は8週後：4週では判定しない）</h3><ul style="margin:4px 0;padding-left:20px">${A.goals.map(g=>`<li>${esc(g)}</li>`).join("")}</ul></div>`;
+  out.innerHTML=h;
+}
+function trow(name,r,l,std,j){
+  const cls=j?{good:"b-good",warn:"b-warn",crit:"b-crit",na:"b-na"}[j.lv]:"b-na";
+  return `<tr><td>${name}</td><td class="num">${r??"─"}</td><td class="num">${l??"─"}</td><td style="font-size:12px;color:var(--ink2)">${std}</td><td><span class="badge ${cls}">${j?esc(j.t):"未測定"}</span></td></tr>`;
+}
+
+/* ================================================================
+   運動カタログとプログラム生成
+   ================================================================ */
+const EX={
+  janken:{name:"足指じゃんけん",how:"裸足でグー・チョキ・パーを各10回。パーで指を全部広げる。",ng:"足首ごと動かさない",dose:"毎日 各10回",star:true},
+  sfe:{name:"土踏まずアップ（ショートフット）",how:"かかとと親指のつけ根を床につけたまま、指を曲げずに土踏まずを持ち上げて5秒キープ×10回。歯みがき中にやると忘れない。",ng:"指が曲がったらやり直し。小指側に体重を逃がさない。",dose:"毎日 5秒×10回",star:true},
+  tso:{name:"指ひらき（トゥ・スプレッド・アウト）",how:"かかとと母趾球・小趾球を床につけたまま、5本の指をパーに開いて5秒キープ×10回。親指は内側へ、小指は外側へ。",ng:"親指が上に反る／指を握り込む",dose:"毎日 5秒×10回",star:true},
+  towel:{name:"タオルギャザー",how:"床のタオルを足の指でたぐり寄せる。左右各2回。",ng:"膝や股関節で引かない",dose:"週3回 左右各2回",star:false},
+  tube:{name:"チューブ足部内返し",how:"座って踵を軸に、チューブの抵抗に対して足を内側へ引く。戻すときは3秒かけてゆっくり。15回×3セット。",ng:"膝や股関節ごと回さない",dose:"週3回 15回×3",star:false},
+  heel:{name:"かかと上げ（ボール挟み）",how:"かかとの間にボールを挟んでつま先立ち。親指のつけ根で押し、3秒かけて下ろす。10〜15回×2〜3セット。",ng:"かかとが外に開く／小指側で上がる",dose:"週3回 10〜15回×2",star:false},
+  calf:{name:"カーフレイズ（母趾球荷重）",how:"両脚でつま先立ち。母趾球（親指のつけ根）で床を押す意識。10回×2セット。",ng:"小指側に体重が逃げる",dose:"週3回 10回×2",star:false},
+  clam:{name:"貝がら（クラムシェル）",how:"横向きに寝て膝を曲げ、かかとをつけたまま上の膝を開く。お尻の横に力が入ればOK。10〜15回×2〜3セット。",ng:"骨盤が後ろに倒れる／腰で反る",dose:"週3回 10〜15回×2",star:false},
+  bridge:{name:"おしり橋（ブリッジ）",how:"仰向けで膝を立て、お尻を上げて2秒キープ×10回。",ng:"腰を反らさず、お尻の力で上げる",dose:"週3回 10回×2",star:false},
+  side:{name:"サイドプランク",how:"肘と膝（できる人は足）で支えて体を一直線に。10〜30秒×2セット。",ng:"腰が落ちる／肩がすくむ",dose:"週3回 10〜30秒×2",star:false},
+  dead:{name:"デッドバグ",how:"仰向けで腰を床につけたまま、対角の手足をゆっくり伸ばす。各5〜10回×2セット。",ng:"腰が床から浮く（反り腰のくせ）",dose:"週3回 各5〜10回×2",star:false},
+  psoas:{name:"腸腰筋ストレッチ",how:"片膝立ちで骨盤を軽く後ろに倒してから体を前へ。もものつけ根が伸びる。30秒×2。",ng:"腰を反って前に出ない。反動なし・痛みなし。",dose:"毎日 30秒×2",star:false},
+  gastro:{name:"ふくらはぎストレッチ",how:"壁に手をつき、後ろ脚の膝を伸ばしたまま踵を床につけてアキレス腱を伸ばす。30秒×2。",ng:"反動をつけない",dose:"毎日 30秒×2",star:false},
+  ols:{name:"片脚立ち",how:"手は腰。左右30秒ずつ。慣れたら目を閉じて10〜20秒。「片足で靴下を履く」でもOK。",ng:"ぐらついたら壁の近くで",dose:"毎日 左右30秒",star:true},
+  sq:{name:"片脚スクワット（浅く）",how:"鏡の前で、膝を2番目の指の上に向けたまま浅くしゃがむ。5〜10回×2セット。",ng:"膝が内に入る／骨盤が落ちる／体幹が横に倒れる",dose:"週3回 5〜10回×2",star:false},
+  land:{name:"静かな着地ジャンプ",how:"両足でジャンプして音を出さずに着地、3秒静止。膝は2番目の指の上。8〜10回。",ng:"「ドスン」ではなく「スッ」。膝が内に入ったら回数を減らして質を優先。",dose:"週3回 8〜10回",star:false},
+  hinge:{name:"股関節おじぎ（ヒップヒンジ）",how:"膝を軽く曲げ、腰を丸めず股関節から体を前に倒す。お尻を後ろに引く意識で10回。",ng:"腰から曲がる／膝が前に出る",dose:"毎日 10回",star:false},
+  walk:{name:"母趾球で押す歩行練習",how:"歩くとき、最後に親指のつけ根で床を押して離れる意識。1日10分の歩行で意識する。",ng:"つま先を外に向けすぎない",dose:"毎日 歩行中に意識",star:false},
+  frtEx:{name:"前への重心移動練習",how:"立ったまま、かかとを浮かさずに体を前へ傾け、足の指で床を押さえて戻る。10回。",ng:"お辞儀にならない（体はまっすぐ）",dose:"毎日 10回",star:false},
+};
+/* 年齢帯×所見 → 推奨種目 */
+function recommendHome(A,rec){
+  const list=[];
+  const add=k=>{if(!list.includes(k))list.push(k)};
+  if(A.band==="elem"){add("janken");add("sfe");add("ols");add("clam");add("bridge");if(A.kneeIn)add("land");}
+  else if(A.band==="teen"){add("sfe");add("tube");add("clam");add("side");if(A.kneeIn)add("sq");if(rec.whole?.lumbarExt||rec.whole?.thomas==="タイト（大腿が水平より上がる）")add("psoas");}
+  else if(A.band==="adult"){add("sfe");add("heel");add("clam");if(A.kneeIn)add("sq");if(rec.whole?.lumbarExt)add("dead");}
+  else {add("janken");add("towel");add("ols");add("calf");add("frtEx");}
+  if(A.hv>=2){add("tso");}
+  if(A.pincer||rec.whole?.gaitNoReturn){add("walk");}
+  if(A.jKw?.lv==="warn")add("gastro");
+  if(A.floating.includes("真性"))add("janken");
+  if(rec.whole?.hinge==="不可（腰から曲がる）")add("hinge");
+  return list.slice(0,8);
+}
+/* 12週プログラム（年齢帯別・案B準拠） */
+const PROGRAMS={
+elem:{title:"小学生（8歳以上・症状あり）：遊び化と親の関与が本体",rows:[
+["P1 気づく（1〜4週）","足指じゃんけん／座位ショートフット5秒×10（鏡で指の代償確認）／タオルギャザー／クラムシェル10×2／ブリッジ10×2／デッドバグ各5","毎日：足指じゃんけん＋SFE（歯みがき中）。週3回：クラムシェル・ブリッジ・ビー玉つかみ","痛みが増えたら中止。裸足で行う。親が「足の指まっすぐ？」と声かけ"],
+["P2 支える（5〜8週）","立位SFE5秒×10×2／両脚ヒールレイズ（ボール挟み）10×2／片脚立ち30秒×左右2／片脚スクワット浅く5×2／サイドプランク10〜15秒×2／腸腰筋ストレッチ","毎日：立位SFE＋片脚立ち30秒×左右。週3回：ヒールレイズ・クラムシェル15×2・サイドプランク","片脚立ちは「ケンケン遊び」「片足で靴下」など生活に埋め込む"],
+["P3 動く（9〜12週）","片脚SFE5秒×8／静かな着地ジャンプ10回／片脚ホップ着地3秒静止5×左右／ケンケンパ・ラダー／片脚スクワット8×2","毎日：片脚SFE＋片脚立ち閉眼10秒。週3回：静かな着地10回・片脚ホップ5×左右","着地で膝が内に入ったら回数を減らして質を優先"]],
+note:"8歳未満・無症状はタイプA＝運動処方なし（裸足遊び・多様な運動の助言のみ）。宿題はシール・○つけで「週3回達成」を見える化。"},
+teen:{title:"中高生：神経筋トレーニングと負荷管理",rows:[
+["P1（1〜4週）","座位→立位SFE5秒×15×2／足趾開排15×2・母趾単独伸展10／チューブ足部内転・回外15×3／クラムシェル（チューブ）15×3／サイドプランク20秒×3／デッドバグ10×2／腸腰筋・腓腹筋ストレッチ30秒×2","SFE5秒×15×2、チューブ内反15×3、クラムシェル15×3、サイドプランク20秒×2、腸腰筋ストレッチ","痛む部位の練習量を20〜30%減。週1日は完全休養"],
+["P2（5〜8週）","片脚立位SFE5秒×10×2／ヒールレイズ（ボール挟み・下ろし3秒）15×3／片脚スクワット10×3（鏡・動画で膝の位置）／片脚ブリッジ10×2／サイドプランク＋上脚外転10×2","ヒールレイズ15×3、片脚スクワット10×2、片脚ブリッジ10×2、片脚立位閉眼20秒×2","再評価：舟状骨落下−2mm・FPPA<13°・NRS−2でP3へ"],
+["P3（9〜12週）","ジャンプ着地（両脚→片脚）3秒静止8×2／ラテラルホップ5×左右×2／減速ストップ5×左右／片脚ヒールレイズ12×2／チーム準備運動をFIFA 11+へ置換（週2回）","着地ドリル8×2、片脚ホップ5×左右、片脚ヒールレイズ12×2","練習時間≦年齢（時間/週）。前週比+10〜20%以内で漸増"]],
+note:"思春期は神経筋トレの効果が最大（膝外反 g=−0.86、ACL損傷 OR 0.28）。腸腰筋と体幹前面を必ず入れる（腰椎分離症対策）。"},
+adult:{title:"成人：毎日SFE＋抵抗運動（12週以降に筋肥大を狙う）",rows:[
+["P1（1〜4週）","SFE座位→両脚立位（毎日5秒×30回→100回まで漸増）／足趾開排・母趾伸展／チューブ足部内転・回外15〜30×3／クラムシェル・腹臥位股外旋20×3／サイドプランク・デッドバグ30秒×3／腸腰筋・腓腹筋ストレッチ30秒×3","SFE毎日3分＋週3回25分","SFE中に足趾が曲がらない・ふくらはぎが攣らないこと"],
+["P2（5〜8週）","片脚立位SFE／ヒールレイズ（ボール挟み・遠心性3秒）15×3→片脚へ／片脚スクワット10〜12×3・片脚デッドリフト10×3／サイドプランク＋外転・片脚ブリッジ／片脚立位閉眼20〜30秒×3","同上を自宅で週3回","再評価：舟状骨落下−2mm以上・FPI−1・NRS−2"],
+["P3（9〜12週）","片脚ヒールレイズに荷重（ダンベル）12×3／ジャンプ・ホップ着地8×3／減速・切り返しドリル／スプリットスクワット10×3／ランニング復帰は距離を週10%以内で増加","荷重ヒールレイズ・着地ドリル","12週で舟状骨落下−4mm・FFI−6.5以上を目標"]],
+note:"症候性（痛みが強い）場合は既製インソールを運動と併用で短期（8〜12週）。装具は「痛みを和らげる道具」であり形を変えるものではない。"},
+senior:{title:"高齢者：足趾トレ＋バランス＋転倒予防（監督下・12週）",rows:[
+["P1（1〜4週）","足指じゃんけん・タオルギャザー10分／カーフレイズ10×2／椅子からの立ち座り10回／片脚立ち（支え付き）30秒×左右","毎日：足指じゃんけん・タオルギャザー。週3回：カーフレイズ・立ち座り","支えのある場所で。痛み・ふらつきが強い日は減らす"],
+["P2（5〜8週）","漸増抵抗の足趾運動（バンド）／片脚立ち（支えなし→閉眼）／前への重心移動練習／ヒップヒンジ10回","片脚立ち毎日左右30秒、重心移動10回","足趾把持力・片脚立位を毎月記録しグラフで確認"],
+["P3（9〜12週）","バランス＋機能的運動の複合（方向転換・不整地歩行）／片脚カーフレイズ／歩幅をやや広げた歩行練習","母趾球で押す歩行を毎日10分","継続が前提（中断すると効果は消える）。卒業後は週2回の維持へ"]],
+note:"足部運動＋靴指導の複合介入は転倒を36%減らす（Spink 2011 BMJ）。監督下であること自体が効果の一部（自宅のみでは効果が出なかった：Mickle 2016）。"}
+};
+
+function renderProgram(){
+  const rec=collect(),A=analyze(rec);
+  const out=$("#programOut");
+  if(A.age==null){out.innerHTML=`<div class="hint">①基本情報で年齢を入力してください。</div>`;return;}
+  let h="";
+  if(A.hasRF) h+=`<div class="alert crit"><b>レッドフラッグ該当。</b>医療機関の判断が出るまで運動プログラムは開始しないでください。以下は紹介後の参考案です。</div>`;
+  if(A.footType.code==="A") h+=`<div class="alert warn"><b>タイプA（生理的・発達途中）：</b>運動処方は行いません。裸足遊び・多様な運動・W座りをやめる等の生活助言と6か月ごとの経過確認が方針です（過剰治療の回避）。患者様用シートには生活のポイントのみが載ります。</div>`;
+  const P=PROGRAMS[A.band];
+  h+=`<div class="card"><h3>12週プログラム（${esc(P.title)}）</h3><div class="scroll"><table class="tbl">
+    <tr><th style="width:110px">フェーズ</th><th>院で（週1回 20〜30分）</th><th>自宅の宿題</th><th>ルール・進行基準</th></tr>
+    ${P.rows.map(r=>`<tr><td><b>${esc(r[0])}</b></td><td>${esc(r[1])}</td><td>${esc(r[2])}</td><td>${esc(r[3])}</td></tr>`).join("")}
+  </table></div><p style="font-size:12px;color:var(--ink2);margin:6px 0 0">${esc(P.note)}</p></div>`;
+  // conditional modules
+  const mods=[];
+  if(A.hv>=2) mods.push("【外反母趾】TSO（指ひらき）を第一選択に。トゥセパレーター夜間装着の案内＋つま先の広い靴指導。目標は「痛み・機能・転倒リスクの改善と進行の管理」（角度の約束はしない）。");
+  if(A.pincer) mods.push("【巻き爪】爪はまっすぐ切る（スクエアカット・白い部分を1mm残す）。テーピング指導。母趾荷重の歩行練習。弯曲が強い・痛みが強い場合は装具矯正（提携医療機関）を案内し、当院は「再発しない足づくり」を担当。");
+  if(A.ingrown) mods.push("【陥入爪】炎症が軽度ならテーピング・コットンパッキングと爪切り指導。化膿・肉芽があれば皮膚科へ。");
+  if(A.supinated) mods.push("【ハイアーチ】衝撃吸収の改善が主目標：ふくらはぎ柔軟性・静かな着地・足趾機能。症状が強ければカスタム装具（提携先）が有効（Burns 2006）。運動でアーチを「下げる」根拠はない。");
+  if(A.laxity) mods.push("【関節弛緩性】ストレッチ偏重にしない。関節の「端」で止めない・中間位で筋で止める練習を優先。反動なし・痛みなしが原則。");
+  if(A.overload) mods.push(`【負荷管理】週練習時間 ${A.hoursWeek}時間 ＞ 年齢${A.age}。「週の練習時間≦年齢」まで調整し、週1日以上の完全休養を。急な増加は前週比+10〜20%以内。`);
+  if(mods.length) h+=`<div class="card"><h3>状態に応じた追加モジュール</h3><ul style="margin:4px 0;padding-left:20px">${mods.map(m=>`<li>${esc(m)}</li>`).join("")}</ul></div>`;
+  // home menu selection
+  const recomm=recommendHome(A,rec);
+  const selected=pendingHome&&pendingHome.length?pendingHome:recomm.slice(0,5);
+  h+=`<div class="card"><h3>患者様用シートに載せる自宅メニュー（チェックした種目が印刷されます）</h3>
+    <p style="font-size:12px;color:var(--ink2);margin:0 0 8px">推奨に基づき自動選択済み。<b>3〜5種目</b>が続けやすい上限です（アドヒアランス対策）。</p>
+    <div class="grid g2">${Object.entries(EX).map(([k,e])=>{
+      const on=selected.includes(k),rc=recomm.includes(k);
+      return `<label class="chk" style="${rc?"":"opacity:.65"}"><input type="checkbox" class="homechk" value="${k}" ${on?"checked":""}>
+        <span><b>${esc(e.name)}</b>${rc?' <span class="badge b-good">推奨</span>':""}<br><small style="color:var(--ink2)">${esc(e.dose)}｜${esc(e.how)}</small></span></label>`;
+    }).join("")}</div></div>`;
+  out.innerHTML=h;
+  pendingHome=null;
+}
+
+/* ================================================================
+   シート生成（治療家用・患者様用）
+   ================================================================ */
+function sheetTherapist(rec,A){
+  const b=rec.basic||{};
+  const tag=j=>j?`<span class="tag t-${j.lv}">${esc(j.t)}</span>`:`<span class="tag t-na">未測定</span>`;
+  const v=(x,u="")=>x!=null&&x!==""?esc(x)+u:"─";
+  let h=`<div class="sh-head">
+    <div><div class="ttl">足部機能分析シート｜治療家用</div><div class="sub">きしもとカラダcondiTion｜評価→分析→介入→再評価</div></div>
+    <div class="who">氏名：<b>${esc(b.name||"　　　　")}</b>（${v(b.age)}歳・${v(b.sex)}）<br>評価日：${v(b.date)}｜${v(b.stage)}｜担当：${v(b.staff)}</div>
+  </div>`;
+  if(A.hasRF) h+=`<div class="critbox">⚠ レッドフラッグ該当（${A.redflags.length}件）— 医療機関へ紹介。運動プログラムは開始しない：${A.redflags.map(esc).join("／")}</div>`;
+  h+=`<div class="sec">1. 基本情報・主訴</div>
+  <table><tr><th style="width:16%">生活状況</th><td>${v(b.life)}</td><th style="width:14%">身長/体重</th><td style="width:20%">${v(b.height,"cm")} / ${v(b.weight,"kg")}</td></tr>
+  <tr><th>スポーツ</th><td>${v(b.sports)}${b.sportsPast?`（過去：${esc(b.sportsPast)}）`:""}</td><th>週練習/休養</th><td>${v(b.hoursWeek,"h")} / 休${v(b.restDays,"日")}${A.overload?' <span class="tag t-warn">時間＞年齢</span>':""}</td></tr>
+  <tr><th>痛みの部位</th><td>${A.painList.length?esc(A.painList.join("・")):"なし"}${rec.pain?.siteNote?`／${esc(rec.pain.siteNote)}`:""}</td><th>NRS 安静/歩行/運動</th><td>${v(A.nrs.rest)} / ${v(A.nrs.walk)} / ${v(A.nrs.sport)}</td></tr>
+  <tr><th>経過・QOL</th><td colspan="3">${v(rec.pain?.onset)}${rec.pain?.qol?`／生活への影響：${esc(rec.pain.qol)}`:""}${rec.pain?.missed?`／過去2週の欠席 ${esc(rec.pain.missed)}回`:""}</td></tr></table>`;
+  h+=`<div class="sec">2. 評価結果（判定つき）</div>
+  <table><tr><th>項目</th><th style="width:10%">右</th><th style="width:10%">左</th><th style="width:26%">基準</th><th style="width:22%">判定</th></tr>
+  <tr><td>FPI-6</td><td>${fmtSigned(A.fpiR)}</td><td>${fmtSigned(A.fpiL)}</td><td>0〜+5正常／+6〜+9回内／+10〜強い回内／−1〜−4回外</td><td>${tag(A.jFpi)}</td></tr>
+  <tr><td>舟状骨落下</td><td>${v(A.ndR,"mm")}</td><td>${v(A.ndL,"mm")}</td><td>5〜9正常／≥10回内／>15著明</td><td>${tag(A.jNd)}</td></tr>
+  <tr><td>つま先立ち／Jack's</td><td colspan="2">${v(rec.foot?.toeRaise)}／${v(rec.foot?.jack)}</td><td>アーチ出現＝柔軟性（出なければ紹介）</td><td>${rec.foot?.toeRaise?.includes("出ない")||rec.foot?.jack?.includes("出ない")?'<span class="tag t-crit">硬性疑い→紹介</span>':rec.foot?.toeRaise?'<span class="tag t-good">柔軟性</span>':'<span class="tag t-na">未測定</span>'}</td></tr>
+  <tr><td>膝壁テスト</td><td>${v(A.kwR,"cm")}</td><td>${v(A.kwL,"cm")}</td><td>&lt;10cmで制限／左右差≥2cm</td><td>${tag(A.jKw)}</td></tr>
+  <tr><td>足趾把持力</td><td>${v(A.gripR,"kg")}</td><td>${v(A.gripL,"kg")}</td><td>${A.age>=65?"体重比<17%で転倒リスク増":"小4〜6平均13.3±4.0kg"}</td><td>${tag(A.jGrip)}</td></tr>
+  <tr><td>浮き趾（福山法）</td><td colspan="2">${v(A.floating)} ${v(rec.foot?.floatingToes)}</td><td>真性=可動性から／偽性=運動学習から</td><td>${A.floating?(A.floating.includes("正常")?'<span class="tag t-good">問題なし</span>':'<span class="tag t-warn">要介入</span>'):'<span class="tag t-na">未評価</span>'}</td></tr>
+  <tr><td>外反母趾（Manchester）</td><td>${v(rec.foot?.hvR)}</td><td>${v(rec.foot?.hvL)}</td><td>G2からAbdH萎縮が始まる${A.hvPain?"／母趾痛あり":""}</td><td>${A.hv>=3?'<span class="tag t-crit">中等度以上</span>':A.hv===2?'<span class="tag t-warn">軽度</span>':A.hv===1?'<span class="tag t-good">なし</span>':'<span class="tag t-na">未測定</span>'}</td></tr>
+  <tr><td>爪（巻き爪/陥入）</td><td colspan="2">${v(rec.foot?.pincer)}${A.ingrown?"／陥入あり":""}</td><td>足趾荷重の回復＝再発予防の土台</td><td>${A.pincerSevere?'<span class="tag t-crit">装具連携</span>':A.pincer||A.ingrown?'<span class="tag t-warn">ケア指導</span>':'<span class="tag t-na">—</span>'}</td></tr>
+  <tr><td>Beighton</td><td colspan="2">${v(A.beighton,"/9")}</td><td>${A.age!=null&&A.age<18?"小児≥6（女児≥7）":"成人≥5"}で全身弛緩</td><td>${tag(A.jBei)}</td></tr>
+  <tr><td>片脚立位 開眼／閉眼</td><td>${v(num(rec.whole?.olsOR),"秒")}</td><td>${v(num(rec.whole?.olsOL),"秒")}</td><td>${olsNorm(A.age)?.label??"─"}／閉眼 ${v(num(rec.whole?.olsC),"秒")}</td><td>${tag(A.jOls)}</td></tr>
+  <tr><td>片脚スクワット／FPPA</td><td>${v(num(rec.whole?.fppaR),"°")}</td><td>${v(num(rec.whole?.fppaL),"°")}</td><td>${v(rec.whole?.squat)}／FPPA 7〜13°正常${rec.whole?.trunkSway?"／体幹動揺あり":""}</td><td>${tag(A.jFppa)}</td></tr>
+  <tr><td>股関節・体幹</td><td colspan="2">Thomas：${v(rec.whole?.thomas)}</td><td>Trendelenburg：${v(rec.whole?.trend)}／サイドプランク ${v(num(rec.whole?.sidePlank),"秒")}／ヒンジ：${v(rec.whole?.hinge)}</td><td>${rec.whole?.thomas==="タイト（大腿が水平より上がる）"||rec.whole?.trend==="陽性（骨盤が落ちる）"?'<span class="tag t-warn">近位制御に課題</span>':'<span class="tag t-na">—</span>'}</td></tr>
+  </table>`;
+  h+=`<div class="sec">3. 分析：タイプ分類と3軸</div>
+  <div class="box"><b>${esc(A.footType.label)}</b>（年齢帯：${BAND_LABEL[A.band]??"─"}）— ${esc(A.footType.policy)}</div>
+  <table><tr><th style="width:33%">構造（変えにくい）</th><th style="width:33%">動作（最も変えられる）</th><th>習慣（環境・負荷）</th></tr>
+  <tr><td>${A.axis.structure.length?A.axis.structure.map(esc).join("<br>"):"特記なし"}</td><td>${A.axis.movement.length?A.axis.movement.map(esc).join("<br>"):"特記なし"}</td><td>${A.axis.habit.length?A.axis.habit.map(esc).join("<br>"):"特記なし"}</td></tr></table>`;
+  const P=PROGRAMS[A.band];
+  h+=`<div class="sec">4. 介入方針・8週間の目標</div>
+  <div class="cols"><div><b>目標（8週）</b><ul>${A.goals.map(g=>`<li>${esc(g)}</li>`).join("")}</ul></div>
+  <div><b>プログラム</b><ul><li>${P?esc(P.title):"─"}（12週・P1→P2→P3）</li><li>院：${esc(rec.plan?.freq||"週1回")}／自宅：毎日3分＋週3回</li><li>次回再評価：${v(rec.plan?.nextDate)}（4週ごと、効果判定は8週）</li>${rec.plan?.note?`<li>施術メモ：${esc(rec.plan.note)}</li>`:""}</ul></div></div>`;
+  h+=`<div class="sec">5. 説明時の表現ルール（禁止→言い換え）</div>
+  <table><tr><th style="width:42%">使わない（根拠なし・誤解を招く）</th><th>使う（根拠あり）</th></tr>
+  <tr><td>「矯正して正常に戻す」「骨を戻す」</td><td>「足と股関節の使い方を育てて、痛みと再発を減らす」</td></tr>
+  <tr><td>「放っておくと一生」「必ず膝や腰を痛める」</td><td>「多くは成長とともに変わります。痛みや機能低下がある場合に運動で機能を高めます」</td></tr>
+  <tr><td>「インソール／運動で形が治る」「1回で変わる」</td><td>「効果の判定は8週後。変わるのは形ではなく、落ち込みの量・バランス・動作・痛みです」</td></tr></table>
+  <div class="foot">根拠：回内足／外反母趾／巻き爪／踵重心・浮き趾・ハイアーチ 各エビデンスレポート（きしもとカラダcondiTion 2026・約250文献）。本シートは医学的診断を代替しません。</div>`;
+  return h;
+}
+
+function sheetPatient(rec,A){
+  const b=rec.basic||{};
+  const v=(x,u="")=>x!=null&&x!==""?esc(x)+u:"─";
+  const homeKeys=(rec.plan?.home&&rec.plan.home.length?rec.plan.home:recommendHome(A,rec).slice(0,5)).filter(k=>EX[k]);
+  // plain-language findings
+  const finds=[];
+  if(A.hasRF) finds.push("今回の検査で、先に病院（整形外科など）で診てもらった方がよいサインがありました。紹介状の内容をご確認ください。");
+  else{
+    if(A.footType.code==="A") finds.push("足の形は「成長の途中でよくみられる状態」です。今は特別な治療は必要ありません。裸足で遊ぶ・いろいろな運動をすることが一番の栄養です。");
+    if(A.footType.code==="B"||A.pronated&&A.footType.code!=="A") finds.push("土踏まずが下がりやすく、足首が内側に倒れやすい状態でした。「形を戻す」のではなく、土踏まずを支える筋肉とお尻・体幹の使い方を育てることが目標です。");
+    if(A.footType.code==="S") finds.push("土踏まずが高く、衝撃を吸収しにくいタイプの足でした。ふくらはぎの柔らかさと「静かな着地」を育てることが目標です。");
+    if(A.kneeIn) finds.push("しゃがむ・着地するときに膝が内側に入るくせがありました。痛みには足の形よりもこの「使い方」が関係します。膝を2番目の指の上に向ける練習をしましょう。");
+    if(A.laxity) finds.push("関節が柔らかい体質です（悪いことではありません）。そのぶん筋肉で「止める力」を育てると、痛みやケガを減らせます。");
+    if(A.jOls?.lv==="warn") finds.push(`片足立ちが年齢の目安より短めでした（${A.olsO}秒）。毎日の片足立ちで伸ばせます。`);
+    if(A.hv>=2) finds.push("外反母趾がみられました。目標は「進行をゆるやかにして、痛みなく歩ける足」。親指を開く筋肉のトレーニングと、つま先の広い靴が2本柱です。");
+    if(A.pincer) finds.push("巻き爪は「足の指に体重が乗っていないよ」というサインです。爪はまっすぐ切り、歩くときに親指のつけ根で床を押す練習をしましょう。");
+    if(A.overload) finds.push(`練習量が多めです（週${A.hoursWeek}時間）。「週の練習時間は年齢の数字まで」が世界的な目安。休む日もトレーニングのうちです。`);
+    if(!finds.length) finds.push("大きな問題はみつかりませんでした。足の指の力とバランスを保つ運動を続けて、良い状態をキープしましょう。");
+  }
+  // life tips
+  const tips=[];
+  if(A.band==="elem"){tips.push("家の中は裸足で。砂場・芝生でも裸足で遊ぶ機会を");tips.push("鬼ごっこ・ケンケン・登る・跳ぶなど、いろいろな遊びを週2日以上");}
+  if(rec.habits?.wSitting)tips.push("W座り（ぺたんこ座り）はやめて、あぐらか椅子に");
+  if(rec.habits?.shoeFit==="きつい・小さい"||rec.habits?.shoeFit==="未確認")tips.push("靴はつま先に1cmの余裕・かかとが硬いものを。サイズは3〜4か月ごとに確認");
+  if(rec.habits?.heels)tips.push("ヒールは「履く日を減らす」だけでも足への負担が減ります（移動はスニーカーに）");
+  if(rec.habits?.nailCut==="角を落とす・深爪ぎみ"||A.pincer||A.ingrown)tips.push("爪はまっすぐ切って角を残す（スクエアカット）。白い部分を1mmほど残す");
+  if(A.overload)tips.push(`練習は週${A.age}時間まで＋週1日は完全オフ`);
+  if(rec.habits?.standing)tips.push("立ち仕事は60〜90分ごとに、かかと上げ数回と足指の開閉でリセット");
+  if(A.band==="senior")tips.push("足の指の力は転倒予防のカギ。毎月の測定で変化を一緒に確認しましょう");
+  if(!tips.length)tips.push("家の中で裸足の時間をつくる／靴のサイズを定期的に確認する");
+  // gauges (paper)
+  const gzArr=[];
+  if(A.worstNd!=null)gzArr.push(gaugeRow("土踏まずの落ち込み",A.worstNd+" mm",gauge({min:0,max:20,bands:[{from:0,to:10,cls:"good"},{from:10,to:15,cls:"warn"},{from:15,to:20,cls:"crit"}],value:A.worstNd,paper:true,width:230}),A.jNd,true));
+  if(A.worstFpi!=null)gzArr.push(gaugeRow("足の姿勢（FPI-6）",fmtSigned(A.worstFpi),gauge({min:-12,max:12,bands:[{from:-12,to:-1,cls:"warn"},{from:-1,to:6,cls:"good"},{from:6,to:12,cls:"warn"}],value:A.worstFpi,paper:true,width:230}),A.jFpi,true));
+  if(A.olsO!=null)gzArr.push(gaugeRow("片足立ち",A.olsO+" 秒",gauge({min:0,max:120,bands:[{from:0,to:olsNorm(A.age)?.min??30,cls:"warn"},{from:olsNorm(A.age)?.min??30,to:120,cls:"good"}],value:A.olsO,paper:true,width:230}),A.jOls,true));
+  if(A.worstGrip!=null)gzArr.push(gaugeRow("足の指の力",A.worstGrip+" kg",gauge({min:0,max:25,bands:[{from:0,to:25,cls:"good"}],value:A.worstGrip,paper:true,width:230}),A.jGrip,true));
+  if(A.maxNrs>0)gzArr.push(gaugeRow("痛み（いちばん強いとき）",A.maxNrs+" /10",gauge({min:0,max:10,bands:[{from:0,to:3,cls:"good"},{from:3,to:6,cls:"warn"},{from:6,to:10,cls:"crit"}],value:A.maxNrs,paper:true,width:230}),{lv:A.maxNrs>=6?"crit":A.maxNrs>=3?"warn":"good",t:"次回また測ります"},true));
+  let h=`<div class="sh-head">
+    <div><div class="ttl">あなたの足の分析シート</div><div class="sub">きしもとカラダcondiTion｜おうちトレーニングつき</div></div>
+    <div class="who"><b>${esc(b.name||"　　　　")}</b> さん（${v(b.age)}歳）<br>${v(b.date)}｜${v(b.stage)}</div></div>`;
+  h+=`<div class="sec">きょうの検査でわかったこと</div><ul>${finds.map(f=>`<li>${esc(f)}</li>`).join("")}</ul>`;
+  if(gzArr.length) h+=`<div class="sec">あなたの数値（▼があなた・緑のゾーンが目安）</div><div class="cols">${gzArr.map(x=>`<div>${x}</div>`).join("")}</div>`;
+  if(homeKeys.length&&A.footType.code!=="A"&&!A.hasRF){
+    h+=`<div class="sec">おうちトレーニング（★は毎日・☆は週3回）</div>
+    <table><tr><th style="width:26%">種目</th><th>やり方</th><th style="width:26%">ポイント</th></tr>
+    ${homeKeys.map(k=>{const e=EX[k];return `<tr><td class="exname">${e.star?"★":"☆"} ${esc(e.name)}<br><small>${esc(e.dose)}</small></td><td class="exhow">${esc(e.how)}</td><td class="expt">NG：${esc(e.ng)}</td></tr>`}).join("")}
+    </table>
+    <table><tr><th style="width:22%">今週の記録</th><th>月</th><th>火</th><th>水</th><th>木</th><th>金</th><th>土</th><th>日</th></tr>
+    <tr><td>★ 毎日メニュー</td>${"<td></td>".repeat(7)}</tr>
+    <tr><td>☆ 週3回メニュー</td>${"<td></td>".repeat(7)}</tr>
+    <tr><td>痛み（0〜10）</td>${"<td></td>".repeat(7)}</tr></table>
+    <div class="box">📌 <b>3つのやくそく</b>：① 痛みが2以上増えたら中止して教えてください ② 効果の判定は<b>8週間後</b>です（4週間ではまだ変わりません。あせらず週3回以上続けることが本体です） ③ できた日に○やシールをつけて見える化</div>`;
+  }
+  h+=`<div class="sec">生活のポイント</div><ul>${tips.map(t=>`<li>${esc(t)}</li>`).join("")}</ul>`;
+  h+=`<div class="box">次回の再評価：<b>${v(rec.plan?.nextDate)}</b>（${esc(rec.plan?.freq||"週1回")}の来院＋4週ごとに数値を再測定して、いっしょにグラフで確認します）</div>`;
+  h+=`<div class="foot">このシートは、あなたの体の「使い方」を育てて痛みと再発を減らすための記録です。気になることがあればいつでもご相談ください。｜きしもとカラダcondiTion</div>`;
+  return h;
+}
+
+function renderSheets(){
+  const rec=collect(),A=analyze(rec);
+  const t=sheetTherapist(rec,A),p=sheetPatient(rec,A);
+  $("#prevT").innerHTML=t;$("#prevP").innerHTML=p;
+  $("#printT").innerHTML=t;$("#printP").innerHTML=p;
+}
+$("#btnRefreshSheets").onclick=renderSheets;
+/* 印刷：claude.ai上ではサンドボックス制限でwindow.print()が動かないため、
+   印刷用HTMLファイルを保存してもらい、開いた先で印刷ダイアログを出す。
+   ローカル（index.htmlを直接開いた場合）は従来どおりその場で印刷。 */
+function buildPrintDoc(mode){
+  const css=[...document.querySelectorAll("style")].map(s=>s.textContent).join("\n");
+  let body="";
+  if(mode!=="p")body+=`<div class="sheet">${$("#printT").innerHTML}</div>`;
+  if(mode!=="t")body+=`<div class="sheet sheet-p">${$("#printP").innerHTML}</div>`;
+  return `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><title>足部機能分析シート 印刷用</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Zen+Maru+Gothic:wght@500;700&display=swap">
+<style>${css}
+body{background:#fff}
+.sheet{margin:16px auto;box-shadow:0 1px 8px rgba(0,0,0,.2)}</style></head>
+<body onload="setTimeout(()=>window.print(),400)">
+<div class="noprint" style="text-align:center;padding:12px;font-family:sans-serif;background:#EFF4F2">
+<button onclick="window.print()" style="padding:10px 28px;font-size:16px;cursor:pointer;background:#0E7368;color:#fff;border:none;border-radius:8px">🖨 印刷する</button>
+<div style="color:#55666D;font-size:13px;margin-top:6px">印刷画面が自動で出ない場合は上のボタンを押してください。印刷画面で「PDFに保存」を選べばPDFにもできます。</div>
+</div>${body}</body></html>`;
+}
+async function doPrint(mode){
+  renderSheets();
+  if(window.claude&&window.claude.use){
+    const dl=await window.claude.use("downloads").catch(()=>null);
+    if(dl){
+      const rec=collect();
+      const label=mode==="t"?"治療家用":mode==="p"?"患者様用":"2枚セット";
+      const fname=`印刷用_${label}_${rec.basic?.name||"無記名"}_${rec.basic?.date||""}.html`;
+      try{
+        await dl.save({filename:fname,data:buildPrintDoc(mode)});
+        flash("印刷用ファイルを保存しました。開くと印刷画面が表示されます");
+      }catch(e){if(e?.code!=="declined")alert("保存できませんでした："+(e?.message||e));}
+      return;
+    }
+  }
+  document.body.classList.toggle("print-t",mode==="t");
+  document.body.classList.toggle("print-p",mode==="p");
+  window.print();
+}
+$("#btnPrintT").onclick=()=>doPrint("t");
+$("#btnPrintP").onclick=()=>doPrint("p");
+$("#btnPrintBoth").onclick=()=>doPrint("both");
+window.addEventListener("afterprint",()=>document.body.classList.remove("print-p","print-t"));
+
+/* ================================================================
+   保存・読込（localStorage / JSON）
+   ================================================================ */
+const LS_KEY="footlab.records.v1";
+function loadAll(){try{return JSON.parse(localStorage.getItem(LS_KEY))||[]}catch(e){return[]}}
+function saveAll(list){try{localStorage.setItem(LS_KEY,JSON.stringify(list));return true}catch(e){alert("保存できませんでした（ブラウザの保存領域）。JSON書出をご利用ください。");return false}}
+function refreshRecSelect(sel){
+  const list=loadAll(),s=$("#recSelect");
+  s.innerHTML=`<option value="">— 保存済みの記録（${list.length}件）—</option>`+
+    list.map((r,i)=>`<option value="${i}" ${sel===i?"selected":""}>${esc(r.basic?.name||"（無記名）")}｜${esc(r.basic?.date||"")}｜${esc(r.basic?.stage||"")}</option>`).join("");
+}
+$("#btnSave").onclick=()=>{
+  const rec=collect();
+  if(!rec.basic?.name){alert("氏名を入力してください。");return}
+  const list=loadAll();
+  const idx=list.findIndex(r=>r.basic?.name===rec.basic.name&&r.basic?.date===rec.basic.date);
+  rec._savedAt=new Date().toISOString();
+  if(idx>=0){if(!confirm("同じ氏名・評価日の記録があります。上書きしますか？"))return;list[idx]=rec;}
+  else list.unshift(rec);
+  if(saveAll(list)){refreshRecSelect(idx>=0?idx:0);flash("保存しました");}
+};
+$("#btnLoad").onclick=()=>{
+  const i=$("#recSelect").value;if(i==="")return;
+  const rec=loadAll()[+i];if(!rec)return;
+  restore(rec);go(0);flash("読み込みました");
+};
+$("#btnDelete").onclick=()=>{
+  const i=$("#recSelect").value;if(i==="")return alert("削除する記録を選択してください。");
+  const list=loadAll();
+  if(!confirm(`「${list[+i]?.basic?.name||"無記名"}」の記録を削除しますか？`))return;
+  list.splice(+i,1);saveAll(list);refreshRecSelect();flash("削除しました");
+};
+$("#btnNew").onclick=()=>{
+  if(!confirm("入力内容をクリアして新規記録を始めますか？（保存していない内容は消えます）"))return;
+  $$("[data-k]").forEach(el=>{if(el.type==="checkbox")el.checked=false;else el.value="";});
+  $('[data-k="basic.date"]').value=new Date().toISOString().slice(0,10);
+  updateFpi();updateBmi();updateRfLive();go(0);
+};
+$("#btnExport").onclick=async()=>{
+  const rec=collect();
+  const json=JSON.stringify({app:"footlab",version:1,records:[rec]},null,2);
+  const fname=`足部分析_${rec.basic?.name||"無記名"}_${rec.basic?.date||""}.json`;
+  // claude.ai アーティファクト上ではdownloads機能、ローカルでは通常のダウンロード
+  const dl=window.claude?.use?await window.claude.use("downloads").catch(()=>null):null;
+  if(dl){
+    try{await dl.save({filename:fname,data:json});flash("保存しました");}
+    catch(e){if(e?.code!=="declined")alert("書き出せませんでした："+(e?.message||e));}
+    return;
+  }
+  const blob=new Blob([json],{type:"application/json"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download=fname;
+  a.click();URL.revokeObjectURL(a.href);
+};
+$("#fileImport").addEventListener("change",e=>{
+  const f=e.target.files[0];if(!f)return;
+  const rd=new FileReader();
+  rd.onload=()=>{try{
+    const d=JSON.parse(rd.result);
+    const rec=d.records?.[0]??d;
+    restore(rec);go(0);flash("JSONを読み込みました");
+  }catch(err){alert("読み込めませんでした："+err.message)}};
+  rd.readAsText(f);e.target.value="";
+});
+function flash(msg){
+  const el=document.createElement("div");
+  el.textContent=msg;
+  el.style.cssText="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--accent);color:#fff;padding:8px 22px;border-radius:999px;z-index:99;font-size:13px;box-shadow:var(--shadow)";
+  document.body.appendChild(el);setTimeout(()=>el.remove(),1800);
+}
+
+/* ---------- init ---------- */
+refreshRecSelect();
+$('[data-k="basic.date"]').value=new Date().toISOString().slice(0,10);
+go(0);
+</script>
+</body>
+</html>
